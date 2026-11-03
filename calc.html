@@ -160,13 +160,20 @@ select {
   <label class="label">外形</label>
   <select id="shape">
     <option value="round">圓形（圓棒）</option>
-    <option value="round" disabled>圓管（待開發）</option>
-    <option value="square" disabled>方管（待開發）</option>
+    <option value="round_tube">圓管</option>
+    <option value="square_tube">方管</option>
   </select>
   <div class="input-group">
-    <label class="label">外徑（D）</label>
+    <label class="label" id="dLabel">外徑（D）</label>
     <div class="input-wrap">
       <input type="text" id="d" placeholder="輸入外徑" data-field="d" inputmode="decimal">
+      <span class="unit">mm</span>
+    </div>
+  </div>
+  <div class="input-group" id="tGroup" style="display:none">
+    <label class="label">壁厚（t）</label>
+    <div class="input-wrap">
+      <input type="text" id="t" placeholder="輸入壁厚" data-field="t" inputmode="decimal">
       <span class="unit">mm</span>
     </div>
   </div>
@@ -185,7 +192,7 @@ select {
     </div>
   </div>
   <button class="calc-btn" id="btnCalc">🧮 計算</button>
-  <div class="formula">
+  <div class="formula" id="formulaBox">
     公式：<b>W = D × D × L × p × 0.0007854</b><br>
     W=重量(g)　D=外徑(mm)　L=長度(mm)　p=密度(g/cm³)<br>
     輸入任意兩個數值，按計算鈕求第三個
@@ -201,11 +208,41 @@ const DENSITY = {
   tungsten:    14.60,
 };
 let currentMat = 'carbon_steel';
+let currentShape = 'round';
 let lastEdit = { d: 0, w: 0, l: 0 };
 const dInput = document.getElementById('d');
 const wInput = document.getElementById('w');
 const lInput = document.getElementById('l');
+const tInput = document.getElementById('t');
 const fields = { d: dInput, w: wInput, l: lInput };
+const shapeSel = document.getElementById('shape');
+const tGroup = document.getElementById('tGroup');
+const dLabel = document.getElementById('dLabel');
+const formulaBox = document.getElementById('formulaBox');
+function isTube(){ return currentShape !== 'round'; }
+function wallT(){ return isTube() ? getVal(tInput) : 0; }
+function crossArea(d, t) { // mm²
+  if (currentShape === 'round_tube') return Math.PI * t * (d - t);
+  if (currentShape === 'square_tube') return 4 * t * (d - t);
+  return Math.PI * d * d / 4;
+}
+function weightOf(d, l, t) { return crossArea(d, t) * l * DENSITY[currentMat] / 1000; }
+function solveDim(w, l, t) {
+  const rho = DENSITY[currentMat];
+  if (currentShape === 'round') return Math.sqrt(w * 4000 / (Math.PI * l * rho));
+  const K = currentShape === 'round_tube' ? Math.PI : 4;
+  return w * 1000 / (K * t * l * rho) + t;
+}
+function solveLen(w, d, t) { return w * 1000 / (crossArea(d, t) * DENSITY[currentMat]); }
+function updateFormula() {
+  if (currentShape === 'round') {
+    formulaBox.innerHTML = '公式：<b>W = D × D × L × p × 0.0007854</b><br>W=重量(g)　D=外徑(mm)　L=長度(mm)　p=密度(g/cm³)<br>輸入任意兩個數值，按計算鈕求第三個';
+  } else if (currentShape === 'round_tube') {
+    formulaBox.innerHTML = '公式：<b>W = π × t × (D − t) × L × p ÷ 1000</b><br>W=重量(g)　D=外徑(mm)　t=壁厚(mm)　L=長度(mm)　p=密度(g/cm³)<br>壁厚必填；D／W／L 任填兩個求第三個';
+  } else {
+    formulaBox.innerHTML = '公式：<b>W = 4 × t × (A − t) × L × p ÷ 1000</b><br>W=重量(g)　A=外邊長(mm)　t=壁厚(mm)　L=長度(mm)　p=密度(g/cm³)<br>壁厚必填；A／W／L 任填兩個求第三個';
+  }
+}
 function getVal(el) {
   if (!el) return null;
   const raw = el.value.trim();
@@ -221,14 +258,14 @@ function fmt(v, field) {
   return v.toPrecision(4);
 }
 function computeAndFill(d, w, l, missing) {
-  const rho = DENSITY[currentMat];
+  const t = wallT();
   let v;
   if (missing === 'w') {
-    v = Math.PI * d * d * l * rho / 4000;
+    v = weightOf(d, l, t);
   } else if (missing === 'd') {
-    v = Math.sqrt(w * 4000 / (Math.PI * l * rho));
+    v = solveDim(w, l, t);
   } else if (missing === 'l') {
-    v = w * 4000 / (Math.PI * d * d * rho);
+    v = solveLen(w, d, t);
   } else return;
   const el = fields[missing];
   el.value = fmt(v, missing);
@@ -250,6 +287,7 @@ function showToast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 function recalc() {
+  if (isTube() && getVal(tInput) === null) return; // 壁厚未填先不算
   const d = getVal(dInput);
   const w = getVal(wInput);
   const l = getVal(lInput);
@@ -277,8 +315,13 @@ document.getElementById('btnCalc').addEventListener('click', () => {
     showToast('請輸入至少兩個數值再按計算');
     return;
   }
+  if (isTube() && getVal(tInput) === null) {
+    showToast('請先輸入壁厚（t）');
+    flashField(tInput);
+    return;
+  }
   recalc();
-  const names = { d: '外徑 D', w: '重量 W', l: '長度 L' };
+  const names = { d: (currentShape === 'square_tube' ? '外邊長 A' : '外徑 D'), w: '重量 W', l: '長度 L' };
   const missing = ['d','w','l'].find(k => getVal(fields[k]) === null);
   const target = filledCount === 2 ? missing : null;
   if (target) showToast('已算出 ' + names[target] + ' = ' + fields[target].value);
@@ -297,14 +340,28 @@ document.getElementById('btnCalc').addEventListener('click', () => {
     });
   });
 });
+['input','keyup','change','blur'].forEach(evt => {
+  tInput.addEventListener(evt, () => { recalc(); });
+});
+shapeSel.addEventListener('change', () => {
+  currentShape = shapeSel.value;
+  tGroup.style.display = isTube() ? '' : 'none';
+  const isSquare = currentShape === 'square_tube';
+  dLabel.textContent = isSquare ? '外邊長（A）' : '外徑（D）';
+  dInput.placeholder = isSquare ? '輸入外邊長' : '輸入外徑';
+  updateFormula();
+  recalc();
+});
+updateFormula();
 document.getElementById('materialChips').addEventListener('click', e => {
   const chip = e.target.closest('.chip');
   if (!chip) return;
   currentMat = chip.dataset.mat;
   document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c === chip));
-  const d = getVal(dInput), l = getVal(lInput);
-  if (d !== null && l !== null) {
-    wInput.value = fmt(Math.PI * d * d * l * DENSITY[currentMat] / 4000, 'w');
+  const d = getVal(dInput), l = getVal(lInput), t = wallT();
+  if (d !== null && l !== null && t !== null) {
+    wInput.value = fmt(weightOf(d, l, t), 'w');
+    flashField(wInput);
   }
 });
 const btnTheme = document.getElementById('btnTheme');
