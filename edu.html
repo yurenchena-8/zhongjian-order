@@ -1,0 +1,995 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f5f6f8">
+<title>忠鍵工業 · 內部學習平台</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js" onerror="window.__sbLoadFail=true"></script>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{--fs:16px}
+body{margin:0;background:#f5f6f8;color:#1c2025;font:400 var(--fs)/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","Microsoft JhengHei",sans-serif;padding-bottom:84px}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:inherit;text-decoration:none}
+#app{max-width:640px;margin:0 auto;padding:12px}
+.bar{display:flex;align-items:center;gap:10px;padding:14px 4px 10px}
+.logo{width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg,var(--g1),var(--g2));color:var(--gtx);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;flex:none}
+.bartxt{flex:1;min-width:0}
+.bartxt b{display:block;font-size:17px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bartxt span{font-size:12px;color:#8b939c}
+.section-title{font-size:17px;font-weight:800;margin:18px 2px 10px;letter-spacing:.5px}
+.panel{background:#fff;border-radius:18px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(20,24,30,.05)}
+.card{position:relative;background:#fff;border-radius:18px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(20,24,30,.05);display:flex;gap:12px;align-items:center}
+.card .thumb{width:66px;height:66px;border-radius:14px;flex:none;background:linear-gradient(135deg,var(--g1),var(--g2));display:flex;align-items:center;justify-content:center;font-size:28px;overflow:hidden}
+.card .thumb img{width:100%;height:100%;object-fit:cover}
+.card .cbody{flex:1;min-width:0}
+.card .cbody b{display:block;font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .cbody p{margin:3px 0 6px;font-size:12px;color:#8b939c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill{display:inline-block;background:#f0f2f5;color:#6b7480;font-size:11px;padding:2px 8px;border-radius:999px;margin-right:6px}
+.pill.ok{background:#e8f6ee;color:#1c7c4a}
+.pill.no{background:#f0f2f5;color:#98a0a8}
+.prog{height:6px;background:#eceef1;border-radius:999px;overflow:hidden}
+.prog i{display:block;height:100%;background:linear-gradient(90deg,var(--p1),var(--p2))}
+.row{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #f0f2f5}
+.row:last-child{border-bottom:none}
+.row .rt{flex:1;min-width:0}
+.row .rt b{display:block;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .rt span{font-size:11px;color:#98a0a8}
+.ficon{width:34px;height:34px;border-radius:10px;background:#f2f4f7;display:flex;align-items:center;justify-content:center;font-size:17px;flex:none}
+.btn{border:none;border-radius:12px;padding:9px 14px;font-size:14px;font-weight:600;background:#eef0f3;cursor:pointer}
+.btn-primary{background:linear-gradient(135deg,var(--p1),var(--p2));color:#fff}
+.btn-gold{background:linear-gradient(135deg,var(--g1),var(--g2));color:var(--gtx)}
+.btn-ghost{background:#f2f4f7;color:#5c6673}
+.btn-sm{padding:6px 10px;font-size:12px;border-radius:10px}
+.btn-block{display:block;width:100%;text-align:center}
+.btn:disabled{opacity:.5}
+.iconbtn{border:none;background:#eef0f3;width:34px;height:34px;border-radius:10px;font-size:18px;cursor:pointer;flex:none}
+.backbar{display:flex;align-items:center;gap:10px;font-weight:700;padding:6px 0 12px}
+.field{margin-bottom:11px}
+.field label{display:block;font-size:12px;color:#7c8590;margin-bottom:5px;font-weight:600}
+.field input,.field select,.field textarea{width:100%;padding:11px 12px;border:1px solid #e3e6ea;border-radius:12px;background:#fbfcfd;outline:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--p1);background:#fff}
+.field textarea{min-height:110px;resize:vertical}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.checks{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:11px}
+.kv{font-size:13px;color:#5c6673}
+.empty{text-align:center;color:#98a0a8;padding:28px 10px;font-size:14px}
+.empty .big{display:block;font-size:34px;margin-bottom:8px}
+.tabbar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #ebedf0;display:flex;max-width:640px;margin:0 auto;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+.tab{flex:1;border:none;background:none;font-size:11px;color:#98a0a8;padding:5px 0;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px}
+.tab .ico{font-size:19px}
+.tab.on{color:#1c2025;font-weight:700}
+#toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(12px);background:#22282f;color:#fff;font-size:13px;padding:9px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:.22s;max-width:82vw;z-index:90}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.notice{background:#fff7e6;border:1px solid #f5dfa8;color:#7a5200;font-size:12px;padding:10px 12px;border-radius:14px;margin-bottom:12px;line-height:1.7}
+.notice b{display:block;margin-bottom:3px;font-size:13px}
+.notice.blue{background:#eef4ff;border-color:#cfe0ff;color:#2b4f8a}
+.prose{white-space:pre-wrap;font-size:15px;line-height:1.85}
+#htmlOverlay{position:fixed;inset:0;background:#fff;z-index:80;display:flex;flex-direction:column}
+.html-ov-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#f5f6f8;border-bottom:1px solid #e6e9ed;font-size:13px;font-weight:600}
+.html-ov-bar span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.html-ov-frame{flex:1;border:none;width:100%}
+.tabs2{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:4px;-webkit-overflow-scrolling:touch}
+.tabs2 button{border:none;background:#eef0f3;border-radius:999px;padding:7px 13px;font-size:13px;white-space:nowrap;cursor:pointer;color:#5c6673}
+.tabs2 button.on{background:#1c2025;color:#fff;font-weight:700}
+.stat{display:flex;gap:10px;margin-bottom:12px}
+.stat div{flex:1;background:#fff;border-radius:16px;padding:12px;text-align:center;box-shadow:0 1px 2px rgba(20,24,30,.05)}
+.stat b{display:block;font-size:22px;font-weight:800}
+.stat span{font-size:11px;color:#98a0a8}
+.video-wrap{position:relative;padding-top:56%;background:#000;border-radius:14px;overflow:hidden}
+.video-wrap iframe{position:absolute;inset:0;width:100%;height:100%;border:none}
+.mono{font:12px/1.6 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;background:#f7f8fa;border-radius:12px;padding:10px;max-height:230px;overflow:auto}
+.offline #app{opacity:.72}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+
+<script>
+/* =====================================================================
+   忠鍵工業 · 內部學習平台（員工教育）
+   單一 HTML 檔；後端為 Supabase（正式登入 + RLS 限縮到已登入員工）
+   雲端尚未建表時自動以「示範資料」執行，功能可完整預覽。
+===================================================================== */
+var CONFIG = {
+  SUPABASE_URL: 'https://jbrtneprhbkseqcmzhup.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable_d-cj8esvrTQ4wGQ7Fs2Xow_0vHZLNEC'
+};
+
+/* ---------------- 工具 ---------------- */
+function $(s, r){ return (r || document).querySelector(s); }
+function $$(s, r){ return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+var LS = {
+  get: function(k, d){ try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch(e){ return d; } },
+  set: function(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+};
+var toastTimer = null;
+function toast(msg){ var t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2400); }
+
+/* ---------------- 資料層 ---------------- */
+var TBL = ['edu_courses', 'edu_lessons', 'edu_progress', 'edu_members', 'files'];
+var DEFAULT_SETTINGS = {
+  id: 'app',
+  app_name: '忠鍵工業 · 內部學習', app_sub: '員工教育訓練平台', logo_char: '忠',
+  gold1: '#f7d878', gold2: '#e9b23f', gold_tx: '#7a5200',
+  primary1: '#ff8a3d', primary2: '#ff5f2e',
+  welcome: '歡迎使用內部學習平台。請依課程順序完成研讀並標記，紀錄會自動保存。'
+};
+
+function seedDemo(){
+  var cid = 'c-coldforging';
+  return {
+    edu_courses: [{
+      id: cid, title: '冷鍛基礎入門', descr: '成形原理、模具與重量計算', emoji: '⚙️', cover: '', sort: 1, active: true
+    }, {
+      id: 'c-safety', title: '安全與規範', descr: '機台操作守則', emoji: '🦺', cover: '', sort: 2, active: true
+    }],
+    edu_lessons: [
+      { id: 'l1', course_id: cid, title: '冷鍛技術文件', kind: 'file', file_id: 'calc0', body: '', minutes: 15, sort: 1 },
+      { id: 'l2', course_id: cid, title: '技術備忘錄', kind: 'file', file_id: 'muf9sb793tbhs9', body: '', minutes: 10, sort: 2 },
+      { id: 'l3', course_id: cid, title: '製程短片', kind: 'video', file_id: 'mudgupfl8adttf', body: '', minutes: 3, sort: 3 },
+      { id: 'l4', course_id: cid, title: '課程重點整理', kind: 'text', file_id: '', minutes: 5, sort: 4,
+        body: '冷鍛與熱鍛的差別在成形溫度：冷鍛在再結晶溫度以下成形，尺寸精度與表面較佳，但變形阻力大，對模具與材料要求較高。\n\n學習重點：\n1. 鍛造比（體積縮小與高度變化）會影響成形負荷。\n2. 坯料體積須與模穴吻合，多料会造成飛邊、少料则充填不足。\n3. 重量計算機可用來快速核對坯料重量與材料損耗。\n4. 模具間隙與潤滑影響工件表面品質與模具壽命。' },
+      { id: 'l5', course_id: 'c-safety', title: '機台操作守則', kind: 'text', file_id: '', minutes: 8, sort: 1,
+        body: '1. 上機前確認護罩、光電與緊急停止按鈕有效。\n2. 長袖、手錶、戒指、項鏈等易勾物品不得進入工作區。\n3. 取放工件一律使用夾具，嚴禁手部伸入模區。\n4. 異常聲響或卡料時先停機，再通報主管。\n5. 交班須填寫機台狀態與異常紀錄。' }
+    ],
+    edu_progress: [],
+    edu_members: [],
+    files: [],
+    settings: Object.assign({}, DEFAULT_SETTINGS)
+  };
+}
+
+var CACHE_V = 'v2';
+var cache = LS.get('edu_cache', null);
+if (!cache || !cache.edu_courses || cache.__v !== CACHE_V) { cache = seedDemo(); }
+cache.__v = CACHE_V;
+LS.set('edu_cache', cache);
+['edu_courses', 'edu_lessons', 'edu_progress', 'edu_members', 'files'].forEach(function(t){ if (!Array.isArray(cache[t])) cache[t] = []; });
+if (!cache.settings) cache.settings = {};
+cache.settings = Object.assign({}, DEFAULT_SETTINGS, cache.settings);
+function persist(){ LS.set('edu_cache', cache); }
+function settings(){ return cache.settings; }
+function applyTheme(){
+  var s = settings(), st = document.documentElement.style;
+  st.setProperty('--g1', s.gold1); st.setProperty('--g2', s.gold2); st.setProperty('--gtx', s.gold_tx);
+  st.setProperty('--p1', s.primary1); st.setProperty('--p2', s.primary2);
+}
+
+/* ---------------- Supabase / 登入 ---------------- */
+var _sb = null;
+function sb(){
+  if (!CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY) return null;
+  if (window.__sbLoadFail || typeof window.supabase === 'undefined') return null;
+  if (!_sb) { try { _sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY); } catch(e){ return null; } }
+  return _sb;
+}
+function cloudOk(){ return !!sb() && navigator.onLine; }
+
+var state = {
+  me: null,            // { user, email, name, role }
+  cloudReady: false,   // 雲端表與政策已就緒
+  adminTab: 'courses',
+  editCourse: null, editLesson: null, editMember: null,
+  courseFilter: '', sqlOpen: false
+};
+function isAdmin(){ return !!state.me && state.me.role === 'admin'; }
+function myKey(){ return state.me ? (state.me.user_id || state.me.email) : ''; }
+
+async function restoreSession(){
+  if (!cloudOk()) return;
+  try {
+    var r = await sb().auth.getSession();
+    var sess = r && r.data && r.data.session;
+    if (sess && sess.user) setMeFromUser(sess.user);
+  } catch(e){}
+}
+function setMeFromUser(u){
+  var email = u.email || u.phone || '';
+  var m = findMember(email);
+  // 雲端尚未建表時先給管理權，否則登入者進不了「建表 SQL」頁
+  state.me = { user: u, user_id: u.id, email: email, name: (m && m.name) || email, role: (m && m.role) || (state.cloudReady ? 'staff' : 'admin') };
+}
+function findMember(email){
+  var e = String(email || '').toLowerCase();
+  for (var i = 0; i < cache.edu_members.length; i++) if (String(cache.edu_members[i].email || '').toLowerCase() === e) return cache.edu_members[i];
+  return null;
+}
+function findMemberById(id){
+  for (var i = 0; i < cache.edu_members.length; i++) if (cache.edu_members[i].id === id) return cache.edu_members[i];
+  return null;
+}
+async function signIn(email, pass){
+  if (!cloudOk()) { toast('需要網路連線才能登入'); return false; }
+  var r = await sb().auth.signInWithPassword({ email: email, password: pass });
+  if (r.error) { toast('登入失敗：' + (r.error.message || r.error.error_description || '帳號或密碼錯誤')); return false; }
+  setMeFromUser(r.data.user);
+  await loadCloud();
+  if (!state.cloudReady) await loadFilesAnon();
+  toast('已登入：' + (state.me.name || state.me.email));
+  location.hash = '#/';
+  render();
+  return true;
+}
+async function signOut(){
+  if (cloudOk()) { try { await sb().auth.signOut(); } catch(e){} }
+  state.me = null;
+  location.hash = '#/login';
+  render();
+}
+function demoEnter(){
+  state.me = { user: null, user_id: 'demo@local', email: 'demo@local', name: '示範管理員', role: 'admin' };
+  state.cloudReady = false;
+  location.hash = '#/';
+  render();
+}
+
+/* 雲端讀取：任何一張表回錯就代表 SQL 還沒執行，維持示範資料 */
+async function loadCloud(){
+  if (!cloudOk() || !state.me) return false;
+  var next = {};
+  for (var i = 0; i < TBL.length; i++) {
+    var t = TBL[i];
+    var res = await sb().from(t).select('*');
+    if (res && res.error) { state.cloudReady = false; return false; }
+    next[t] = res.data || [];
+  }
+  var rs = await sb().from('edu_settings').select('*').eq('id', 'app');
+  var cloudSettings = (rs && !rs.error && rs.data && rs.data[0]) ? rs.data[0] : null;
+  TBL.forEach(function(t){ cache[t] = next[t]; });
+  if (cloudSettings) cache.settings = Object.assign({}, DEFAULT_SETTINGS, cache.settings, cloudSettings);
+  state.cloudReady = true;
+  if (state.me) {
+    var m = findMember(state.me.email);
+    state.me.role = (m && m.role) || 'staff';
+    state.me.name = (m && m.name) || state.me.name;
+  }
+  persist(); applyTheme(); render();
+  return true;
+}
+/* 教材檔案沿用既有 files 表，未建 edu 表時也能讀到真檔案 */
+async function loadFilesAnon(){
+  if (!cloudOk()) return;
+  try {
+    var res = await sb().from('files').select('*');
+    if (res && !res.error && Array.isArray(res.data)) { cache.files = res.data; persist(); render(); }
+  } catch(e){}
+}
+async function dbAdd(t, row){
+  row.id = row.id || uid();
+  row.created_at = row.created_at || new Date().toISOString();
+  if (state.cloudReady && cloudOk()) {
+    var res = await sb().from(t).insert(row).select();
+    if (res && res.error) { toast('雲端寫入失敗：' + res.error.message); return row; }
+    if (res && res.data && res.data[0]) row = res.data[0];
+  }
+  upsertCache(t, row); persist();
+  return row;
+}
+async function dbUpd(t, row){
+  if (state.cloudReady && cloudOk()) {
+    var res = await sb().from(t).update(row).eq('id', row.id);
+    if (res && res.error) { toast('雲端更新失敗：' + res.error.message); return; }
+  }
+  upsertCache(t, row); persist(); render();
+}
+async function dbDel(t, id){
+  if (state.cloudReady && cloudOk()) {
+    var res = await sb().from(t).delete().eq('id', id);
+    if (res && res.error) { toast('雲端刪除失敗：' + res.error.message); return; }
+  }
+  cache[t] = cache[t].filter(function(r){ return r.id !== id; });
+  persist(); render();
+}
+function upsertCache(t, row){
+  var i = -1;
+  for (var k = 0; k < cache[t].length; k++) if (cache[t][k].id === row.id) { i = k; break; }
+  if (i >= 0) cache[t][i] = Object.assign({}, cache[t][i], row); else cache[t].push(row);
+}
+
+/* ---------------- 進度計算 ---------------- */
+function lessonsOf(cid){
+  return cache.edu_lessons.filter(function(l){ return l.course_id === cid; })
+    .sort(function(a, b){ return (a.sort || 0) - (b.sort || 0); });
+}
+function courses(){
+  return cache.edu_courses.filter(function(c){ return c.active !== false; })
+    .sort(function(a, b){ return (a.sort || 0) - (b.sort || 0); });
+}
+function myProgress(lessonId){
+  var k = myKey();
+  for (var i = 0; i < cache.edu_progress.length; i++) {
+    var p = cache.edu_progress[i];
+    if (p.lesson_id === lessonId && (p.user_id === k || String(p.user_email || '').toLowerCase() === String(k).toLowerCase())) return p;
+  }
+  return null;
+}
+function courseStat(cid){
+  var ls = lessonsOf(cid), done = 0, mins = 0;
+  ls.forEach(function(l){ if (myProgress(l.id)) done++; mins += Number(l.minutes || 0); });
+  return { total: ls.length, done: done, pct: ls.length ? Math.round(done * 100 / ls.length) : 0, mins: mins };
+}
+function myTotals(){
+  var done = 0, mins = 0;
+  cache.edu_lessons.forEach(function(l){
+    var p = myProgress(l.id);
+    if (p) { done++; mins += Number(l.minutes || 0); }
+  });
+  return { done: done, mins: mins, total: cache.edu_lessons.length };
+}
+async function markDone(lesson, on){
+  var p = myProgress(lesson.id);
+  if (on) {
+    var row = p || {};
+    row = Object.assign({}, row, {
+      id: row.id || uid(), user_id: myKey(), user_email: state.me.email,
+      course_id: lesson.course_id, lesson_id: lesson.id, status: 'done', completed_at: new Date().toISOString()
+    });
+    if (p) await dbUpd('edu_progress', row); else await dbAdd('edu_progress', row);
+    toast('已標記完成');
+  } else if (p) {
+    await dbDel('edu_progress', p.id);
+    toast('已取消完成');
+  }
+  render();
+}
+function findLesson(id){ for (var i = 0; i < cache.edu_lessons.length; i++) if (cache.edu_lessons[i].id === id) return cache.edu_lessons[i]; return null; }
+function findCourse(id){ for (var i = 0; i < cache.edu_courses.length; i++) if (cache.edu_courses[i].id === id) return cache.edu_courses[i]; return null; }
+function findFile(id){ for (var i = 0; i < cache.files.length; i++) if (cache.files[i].id === id) return cache.files[i]; return null; }
+function isHtmlFile(f){ return /\.html?$/i.test(f && f.name || ''); }
+function ytEmbed(url){
+  var m = String(url || '').match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([A-Za-z0-9_-]{6,})/);
+  return m ? 'https://www.youtube.com/embed/' + m[1] : '';
+}
+function kindLabel(k){ return ({ text: '文字教材', file: '文件', html: '互動文件', video: '影片' })[k] || '教材'; }
+function kindIcon(k){ return ({ text: '📝', file: '📄', html: '📖', video: '🎬' })[k] || '📄'; }
+function lessonKind(l){
+  if (l.kind === 'file' && l.file_id) { var f = findFile(l.file_id); if (f && isHtmlFile(f)) return 'html'; }
+  return l.kind || 'text';
+}
+
+/* ---------------- 文件開啟（沙箱 iframe，教材內不可存取本站資料） ---------------- */
+function openMaterial(f, title){
+  if (!f) { toast('找不到教材檔案'); return; }
+  fetch(f.url).then(function(r){
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.text();
+  }).then(function(t){
+    var old = document.getElementById('htmlOverlay');
+    if (old) old.remove();
+    var ov = document.createElement('div');
+    ov.id = 'htmlOverlay';
+    ov.innerHTML = '<div class="html-ov-bar"><button class="btn btn-ghost btn-sm" data-act="close-html">✕ 關閉</button>' +
+      '<span>' + esc(title || String(f.name || '').replace(/\.html?$/i, '')) + '</span>' +
+      '<a class="btn btn-ghost btn-sm" href="' + esc(f.url) + '" download="' + esc(f.name || 'material') + '">下載</a></div>' +
+      '<iframe class="html-ov-frame" title="' + esc(f.name || '') + '" sandbox="allow-scripts allow-popups allow-forms allow-modals"></iframe>';
+    document.body.appendChild(ov);
+    ov.querySelector('iframe').srcdoc = t;
+  }).catch(function(e){ toast('載入失敗：' + e.message); });
+}
+
+/* ---------------- 視圖：登入 ---------------- */
+function viewLogin(){
+  var s = settings();
+  return '<div class="bar"><div class="logo">' + esc(s.logo_char) + '</div><div class="bartxt"><b>' + esc(s.app_name) + '</b><span>' + esc(s.app_sub) + '</span></div></div>' +
+    '<div class="panel">' +
+      '<div class="field"><label>員工信箱（帳號）</label><input id="lgEmail" type="email" inputmode="email" autocomplete="username" placeholder="name@company.com"></div>' +
+      '<div class="field"><label>密碼</label><input id="lgPass" type="password" autocomplete="current-password" placeholder="由管理員提供"></div>' +
+      '<button class="btn btn-primary btn-block" data-act="do-login">登入</button>' +
+      '<div class="kv" style="margin-top:12px">帳號由管理員在 Supabase 建立（Users → Add user → Create new user → 勾 Auto Confirm）。忘記密碼請找管理員重設。</div>' +
+    '</div>' +
+    (cloudOk() ? '' : '<div class="notice"><b>目前離線</b>需要網路連線才能登入與同步。</div>') +
+    '<div class="notice blue"><b>示範模式</b>資料庫尚未建好時，可先以示範資料預覽全部功能（不會寫入雲端）。</div>' +
+    '<button class="btn btn-block" data-act="demo-enter">以示範模式進入</button>';
+}
+
+/* ---------------- 視圖：首頁（課程列表） ---------------- */
+function viewHome(){
+  var s = settings(), list = courses(), tot = myTotals();
+  var head = '<div class="bar"><div class="logo">' + esc(s.logo_char) + '</div><div class="bartxt"><b>' + esc(s.app_name) + '</b><span>' + esc(state.me.name || state.me.email) + '・' + (isAdmin() ? '管理員' : '員工') + '</span></div>' +
+    (isAdmin() ? '<button class="iconbtn" data-act="go" data-hash="#/admin" title="管理">⚙️</button>' : '') +
+    '<button class="iconbtn" data-act="logout" title="登出">⏏</button></div>';
+  var notice = '';
+  if (!state.cloudReady) notice = '<div class="notice"><b>示範資料中</b>尚未連接雲端資料庫。管理員請到「管理 → 建表 SQL」複製並執行一次，之後所有員工共用同一份課程與紀錄。</div>';
+  var stat = '<div class="stat">' +
+    '<div><b>' + tot.done + '</b><span>已完成單元</span></div>' +
+    '<div><b>' + tot.mins + '</b><span>累計分鐘</span></div>' +
+    '<div><b>' + (tot.total ? Math.round(tot.done * 100 / tot.total) : 0) + '%</b><span>整體進度</span></div></div>';
+  return head + notice +
+    '<div class="panel" style="font-size:13px;color:#5c6673">' + esc(s.welcome) + '</div>' +
+    stat + '<div class="section-title">課程</div>' +
+    (list.length ? list.map(function(c){
+      var st = courseStat(c.id);
+      return '<div class="card" data-act="open-course" data-id="' + c.id + '">' +
+        '<div class="thumb">' + (c.cover ? '<img src="' + esc(c.cover) + '" alt="">' : esc(c.emoji || '📘')) + '</div>' +
+        '<div class="cbody"><b>' + esc(c.title) + '</b><p>' + esc(c.descr || '') + '</p>' +
+        '<span class="pill ' + (st.pct === 100 ? 'ok' : 'no') + '">' + st.done + '/' + st.total + ' 單元</span>' +
+        '<span class="pill">' + st.mins + ' 分鐘</span>' +
+        '<div class="prog" style="margin-top:8px"><i style="width:' + st.pct + '%"></i></div></div></div>';
+    }).join('') : '<div class="empty"><span class="big">📚</span>還沒有課程，請到管理頁新增</div>');
+}
+
+/* ---------------- 視圖：課程詳情 ---------------- */
+function viewCourse(id){
+  var c = findCourse(id);
+  if (!c) return '<div class="empty"><span class="big">😕</span>課程不存在</div>';
+  var ls = lessonsOf(id), st = courseStat(id);
+  return '<div class="backbar"><button class="iconbtn" data-act="go" data-hash="#/">‹</button>' + esc(c.title) + '</div>' +
+    '<div class="panel"><div style="font-size:15px;font-weight:700">' + esc(c.emoji || '') + ' ' + esc(c.title) + '</div>' +
+    '<div class="kv" style="margin:6px 0 10px">' + esc(c.descr || '') + '</div>' +
+    '<div class="prog"><i style="width:' + st.pct + '%"></i></div>' +
+    '<div class="kv" style="margin-top:6px;font-size:12px">完成 ' + st.done + ' / ' + st.total + '（' + st.pct + '%）</div></div>' +
+    '<div class="section-title">單元</div><div class="panel">' +
+    (ls.length ? ls.map(function(l, i){
+      var p = myProgress(l.id), kk = lessonKind(l);
+      return '<div class="row"><span class="ficon">' + kindIcon(kk) + '</span><div class="rt">' +
+        '<b>' + (i + 1) + '. ' + esc(l.title) + '</b><span>' + kindLabel(kk) + '・' + (l.minutes || 0) + ' 分鐘</span></div>' +
+        (p ? '<span class="pill ok">✓ 已完成</span>' : '') +
+        '<button class="btn btn-sm ' + (p ? 'btn-ghost' : 'btn-gold') + '" data-act="open-lesson" data-id="' + l.id + '">開啟</button></div>';
+    }).join('') : '<div class="empty"><span class="big">📄</span>本課程還沒有單元</div>') + '</div>';
+}
+
+/* ---------------- 視圖：單元（教材） ---------------- */
+function viewLesson(id){
+  var l = findLesson(id);
+  if (!l) return '<div class="empty"><span class="big">😕</span>單元不存在</div>';
+  var c = findCourse(l.course_id), p = myProgress(l.id), f = l.file_id ? findFile(l.file_id) : null;
+  var kk = lessonKind(l), body = '';
+  if (kk === 'video') {
+    var em = ytEmbed(f && f.url || l.url || l.body);
+    body = em ? '<div class="panel"><div class="video-wrap"><iframe src="' + esc(em) + '" title="' + esc(l.title) + '" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div></div>'
+              : '<div class="empty"><span class="big">⚠️</span>影片連結無效（請在後台重新貼上 YouTube 網址）</div>';
+  } else if (kk === 'text') {
+    body = '<div class="panel prose">' + esc(l.body || '（尚未填寫內容）') + '</div>';
+  } else {
+    if (!f) {
+      body = '<div class="empty"><span class="big">📎</span>尚未綁定檔案，請在後台上傳教材</div>';
+    } else if (isHtmlFile(f)) {
+      body = '<div class="panel"><div class="row" style="border:none;padding:0"><span class="ficon">📖</span><div class="rt"><b>' + esc(f.name) + '</b><span>互動式文件・可在頁面內開啟</span></div></div>' +
+        '<button class="btn btn-gold btn-block" style="margin-top:10px" data-act="open-material" data-id="' + f.id + '" data-title="' + esc(l.title) + '">開啟教材</button></div>';
+    } else {
+      body = '<div class="panel"><div class="row" style="border:none;padding:0"><span class="ficon">' + kindIcon(kk) + '</span><div class="rt"><b>' + esc(f.name) + '</b><span>' + (f.size ? Math.round(f.size / 1024) + ' KB' : '文件') + '</span></div></div>' +
+        '<a class="btn btn-primary btn-block" style="margin-top:10px" href="' + esc(f.url) + '" download="' + esc(f.name) + '">下載教材</a></div>';
+    }
+  }
+  var ls = lessonsOf(l.course_id), idx = -1;
+  ls.forEach(function(x, i){ if (x.id === id) idx = i; });
+  var nav = '';
+  if (idx >= 0 && (idx > 0 || idx < ls.length - 1)) {
+    nav = '<div class="row2" style="margin-top:12px">' +
+      (idx > 0 ? '<button class="btn" data-act="open-lesson" data-id="' + ls[idx - 1].id + '">‹ 上一單元</button>' : '<span></span>') +
+      (idx < ls.length - 1 ? '<button class="btn" data-act="open-lesson" data-id="' + ls[idx + 1].id + '">下一單元 ›</button>' : '<span></span>') + '</div>';
+  }
+  return '<div class="backbar"><button class="iconbtn" data-act="go" data-hash="#/course/' + l.course_id + '">‹</button>' + esc(c ? c.title : '課程') + '</div>' +
+    '<div class="panel" style="margin-bottom:10px"><div style="font-size:16px;font-weight:800">' + esc(l.title) + '</div>' +
+    '<div class="kv" style="margin-top:4px;font-size:12px">' + kindLabel(kk) + '・約 ' + (l.minutes || 0) + ' 分鐘</div></div>' +
+    body +
+    '<div style="margin-top:14px">' + (p
+      ? '<div class="panel" style="text-align:center"><div style="font-size:14px;font-weight:700;color:#1c7c4a">✓ 你已完成本單元</div><div class="kv" style="font-size:12px;margin-top:4px">' + esc(String(p.completed_at || '').slice(0, 16).replace('T', ' ')) + '</div><button class="btn btn-ghost btn-sm" style="margin-top:10px" data-act="unmark" data-id="' + l.id + '">標記未完成</button></div>'
+      : '<button class="btn btn-primary btn-block" data-act="mark" data-id="' + l.id + '">完成研讀，標記本單元</button>') + '</div>' +
+    nav;
+}
+
+/* ---------------- 視圖：我的 ---------------- */
+function viewMe(){
+  var s = settings(), t = myTotals();
+  var rows = cache.edu_progress.filter(function(p){ return p.user_id === myKey() || String(p.user_email || '').toLowerCase() === String(myKey()).toLowerCase(); })
+    .sort(function(a, b){ return String(b.completed_at || '').localeCompare(String(a.completed_at || '')); });
+  return '<div class="bar"><div class="logo">' + esc(s.logo_char) + '</div><div class="bartxt"><b>我的學習</b><span>' + esc(state.me.name || state.me.email) + '</span></div></div>' +
+    '<div class="stat"><div><b>' + t.done + '</b><span>已完成</span></div><div><b>' + t.mins + '</b><span>分鐘</span></div><div><b>' + (t.total ? Math.round(t.done * 100 / t.total) : 0) + '%</b><span>進度</span></div></div>' +
+    '<div class="panel"><div class="row" style="border:none;padding:0"><span class="ficon">✉️</span><div class="rt"><b>' + esc(state.me.email || '（無信箱）') + '</b><span>' + (isAdmin() ? '管理員' : '員工') + '・' + (state.cloudReady ? '已連雲端' : '示範模式') + '</span></div></div></div>' +
+    '<div class="section-title">學習紀錄</div><div class="panel">' +
+    (rows.length ? rows.map(function(p){
+      var l = findLesson(p.lesson_id);
+      return '<div class="row"><span class="ficon">✅</span><div class="rt"><b>' + esc(l ? l.title : (p.lesson_id || '')) + '</b><span>' + esc(String(p.completed_at || '').slice(0, 16).replace('T', ' ')) + '</span></div></div>';
+    }).join('') : '<div class="empty"><span class="big">🗒</span>還沒有紀錄</div>') + '</div>' +
+    '<button class="btn btn-block" data-act="logout">登出</button>';
+}
+
+/* ---------------- 視圖：管理 ---------------- */
+function viewAdmin(){
+  var t = state.adminTab;
+  var tabs = [['courses', '課程'], ['lessons', '單元'], ['records', '紀錄'], ['members', '成員'], ['settings', '設置'], ['sql', '建表 SQL'], ['data', '資料備份']];
+  return '<div class="backbar"><button class="iconbtn" data-act="go" data-hash="#/">‹</button>管理後台</div>' +
+    '<div class="tabs2">' + tabs.map(function(x){ return '<button class="' + (t === x[0] ? 'on' : '') + '" data-act="admin-tab" data-id="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+    ({ courses: adminCourses, lessons: adminLessons, records: adminRecords, members: adminMembers, settings: adminSettings, sql: adminSql, data: adminData }[t] || adminCourses)();
+}
+function adminCourses(){
+  if (state.editCourse) return courseForm(state.editCourse);
+  var list = cache.edu_courses.slice().sort(function(a, b){ return (a.sort || 0) - (b.sort || 0); });
+  return '<button class="btn btn-primary btn-block" style="margin-bottom:12px" data-act="new-course">＋ 新增課程</button>' +
+    (list.length ? '<div class="panel">' + list.map(function(c){
+      var st = courseStat(c.id);
+      return '<div class="row"><span class="ficon">' + esc(c.emoji || '📘') + '</span><div class="rt"><b>' + esc(c.title) + '</b><span>' + lessonsOf(c.id).length + ' 個單元・' + st.mins + ' 分鐘・' + (c.active === false ? '已停用' : '上線中') + '</span></div>' +
+        '<button class="btn btn-sm" data-act="edit-course" data-id="' + c.id + '">編輯</button>' +
+        '<button class="btn btn-sm btn-ghost" data-act="del-course" data-id="' + c.id + '">刪除</button></div>';
+    }).join('') + '</div>' : '<div class="empty"><span class="big">📚</span>尚無課程</div>');
+}
+function courseForm(id){
+  var c = id === 'new' ? { id: '', title: '', descr: '', emoji: '📘', cover: '', sort: (cache.edu_courses.length + 1), active: true } : (findCourse(id) || {});
+  return '<div class="panel"><form data-form="course">' +
+    '<div class="field"><label>課程名稱</label><input name="title" required value="' + esc(c.title || '') + '"></div>' +
+    '<div class="field"><label>簡介</label><input name="descr" value="' + esc(c.descr || '') + '"></div>' +
+    '<div class="row2"><div class="field"><label>圖示（emoji）</label><input name="emoji" maxlength="4" value="' + esc(c.emoji || '📘') + '"></div>' +
+    '<div class="field"><label>排序（小的排前面）</label><input name="sort" type="number" value="' + esc(c.sort || 0) + '"></div></div>' +
+    '<div class="field"><label>封面圖網址（可留空）</label><input name="cover" value="' + esc(c.cover || '') + '"></div>' +
+    '<label class="checks"><input type="checkbox" name="active" ' + (c.active === false ? '' : 'checked') + '> 上線中（停用後員工看不到）</label>' +
+    '<input type="hidden" name="id" value="' + esc(c.id || '') + '">' +
+    '<button class="btn btn-primary btn-block" type="submit">儲存課程</button>' +
+    '<button class="btn btn-ghost btn-block" style="margin-top:8px" type="button" data-act="cancel-course">取消</button></form></div>';
+}
+function adminLessons(){
+  if (state.editLesson) return lessonForm(state.editLesson);
+  var cs = cache.edu_courses.slice().sort(function(a, b){ return (a.sort || 0) - (b.sort || 0); });
+  var filter = state.courseFilter || (cs[0] && cs[0].id) || '';
+  var list = cache.edu_lessons.filter(function(l){ return l.course_id === filter; }).sort(function(a, b){ return (a.sort || 0) - (b.sort || 0); });
+  return '<div class="field"><label>選擇課程</label><select data-act="course-filter">' +
+    cs.map(function(c){ return '<option value="' + c.id + '"' + (c.id === filter ? ' selected' : '') + '>' + esc(c.title) + '</option>'; }).join('') + '</select></div>' +
+    '<button class="btn btn-primary btn-block" style="margin-bottom:12px" data-act="new-lesson">＋ 新增單元</button>' +
+    (list.length ? '<div class="panel">' + list.map(function(l, i){
+      var f = l.file_id ? findFile(l.file_id) : null, kk = lessonKind(l);
+      return '<div class="row"><span class="ficon">' + kindIcon(kk) + '</span><div class="rt"><b>' + (i + 1) + '. ' + esc(l.title) + '</b><span>' + kindLabel(kk) + '・' + (l.minutes || 0) + ' 分鐘' + (f ? '・' + esc(f.name) : '') + '</span></div>' +
+        '<button class="btn btn-sm" data-act="edit-lesson" data-id="' + l.id + '">編輯</button>' +
+        '<button class="btn btn-sm btn-ghost" data-act="del-lesson" data-id="' + l.id + '">刪除</button></div>';
+    }).join('') + '</div>' : '<div class="empty"><span class="big">📄</span>本課程尚無單元</div>');
+}
+function lessonForm(id){
+  var isNew = id === 'new';
+  var l = isNew ? { id: '', course_id: state.courseFilter, title: '', kind: 'text', file_id: '', body: '', minutes: 10, sort: cache.edu_lessons.length + 1, url: '' } : (findLesson(id) || {});
+  var cs = cache.edu_courses.slice().sort(function(a, b){ return (a.sort || 0) - (b.sort || 0); });
+  var files = cache.files.filter(function(f){ return f.kind !== 'logo'; });
+  return '<div class="panel"><form data-form="lesson">' +
+    '<div class="field"><label>單元名稱</label><input name="title" required value="' + esc(l.title || '') + '"></div>' +
+    '<div class="field"><label>所屬課程</label><select name="course_id">' +
+      cs.map(function(c){ return '<option value="' + c.id + '"' + (c.id === l.course_id ? ' selected' : '') + '>' + esc(c.title) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="row2"><div class="field"><label>類型</label><select name="kind">' +
+      [['text', '文字教材'], ['html', '互動文件（HTML）'], ['file', '文件下載'], ['video', '影片（YouTube）']].map(function(k){
+        var cur = (l.kind === 'html' && l.file_id && findFile(l.file_id) && isHtmlFile(findFile(l.file_id))) ? 'html' : (l.kind || 'text');
+        return '<option value="' + k[0] + '"' + (cur === k[0] ? ' selected' : '') + '>' + k[1] + '</option>';
+      }).join('') + '</select></div>' +
+      '<div class="field"><label>分鐘</label><input name="minutes" type="number" value="' + esc(l.minutes || 10) + '"></div></div>' +
+    '<div class="field"><label>既有教材檔案</label><select name="file_id"><option value="">（不使用）</option>' +
+      files.map(function(f){ return '<option value="' + f.id + '"' + (f.id === l.file_id ? ' selected' : '') + '>' + esc(f.name) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="field"><label>或上傳新教材（HTML／PDF／Excel／Word／圖片）</label><input type="file" id="lessonFile"></div>' +
+    '<div class="field"><label>影片網址（類型選「影片」時填）</label><input name="url" placeholder="https://youtube.com/shorts/…" value="' + esc(l.url || '') + '"></div>' +
+    '<div class="field"><label>文字內容（類型選「文字教材」時填）</label><textarea name="body">' + esc(l.body || '') + '</textarea></div>' +
+    '<div class="field"><label>排序</label><input name="sort" type="number" value="' + esc(l.sort || 0) + '"></div>' +
+    '<input type="hidden" name="id" value="' + esc(l.id || '') + '">' +
+    '<button class="btn btn-primary btn-block" type="submit">儲存單元</button>' +
+    '<button class="btn btn-ghost btn-block" style="margin-top:8px" type="button" data-act="cancel-lesson">取消</button></form></div>';
+}
+function adminRecords(){
+  var rows = cache.edu_progress.slice().sort(function(a, b){ return String(b.completed_at || '').localeCompare(String(a.completed_at || '')); });
+  var byMember = {};
+  cache.edu_members.forEach(function(m){ byMember[String(m.email || '').toLowerCase()] = { name: m.name, email: m.email, role: m.role, done: 0, mins: 0 }; });
+  rows.forEach(function(p){
+    var key = String(p.user_email || p.user_id || '').toLowerCase();
+    if (!byMember[key]) byMember[key] = { name: p.user_email || p.user_id || '（未知）', email: p.user_email || '', role: 'staff', done: 0, mins: 0 };
+    byMember[key].done++;
+    var l = findLesson(p.lesson_id);
+    if (l) byMember[key].mins += Number(l.minutes || 0);
+  });
+  var members = Object.keys(byMember).map(function(k){ return byMember[k]; }).sort(function(a, b){ return b.done - a.done; });
+  return '<div class="panel"><div class="kv" style="margin-bottom:10px"><b>員工完成概況</b>（共 ' + rows.length + ' 筆紀錄）</div>' +
+    (members.length ? members.map(function(m){
+      return '<div class="row"><span class="ficon">' + (m.role === 'admin' ? '👑' : '👤') + '</span><div class="rt"><b>' + esc(m.name || m.email) + '</b><span>' + esc(m.email || '') + '・' + m.done + ' 個單元・' + m.mins + ' 分鐘</span></div></div>';
+    }).join('') : '<div class="empty"><span class="big">🗒</span>尚無學習紀錄</div>') + '</div>' +
+    '<button class="btn btn-block" data-act="export-csv">匯出學習紀錄（Excel 可開）</button>' +
+    '<div class="section-title">全部紀錄</div><div class="panel">' +
+    (rows.length ? rows.slice(0, 60).map(function(p){
+      var l = findLesson(p.lesson_id);
+      return '<div class="row"><span class="ficon">✅</span><div class="rt"><b>' + esc(p.user_email || p.user_id || '') + '</b><span>' + esc(l ? l.title : (p.lesson_id || '')) + '・' + esc(String(p.completed_at || '').slice(0, 16).replace('T', ' ')) + '</span></div>' +
+        '<button class="btn btn-sm btn-ghost" data-act="del-record" data-id="' + p.id + '">刪除</button></div>';
+    }).join('') : '<div class="empty"><span class="big">🗒</span>無</div>') + '</div>';
+}
+function adminMembers(){
+  if (state.editMember) return memberForm(state.editMember);
+  var list = cache.edu_members.slice().sort(function(a, b){ return String(a.name || '').localeCompare(String(b.name || '')); });
+  return '<div class="notice blue"><b>開帳號的順序</b>1️⃣ 這裡新增成員（姓名＋信箱＋角色）→ 2️⃣ 到 Supabase 控制台 Users → Add user 右側小箭頭 → <b>Create new user</b>，填同一組信箱與密碼、勾 <b>Auto Confirm</b> → 3️⃣ 員工就能登入。<br>角色選「管理員」才有後台與新增課程權限。</div>' +
+    '<button class="btn btn-primary btn-block" style="margin-bottom:12px" data-act="new-member">＋ 新增成員</button>' +
+    '<button class="btn btn-block" style="margin-bottom:12px" data-act="copy-accounts">複製待開帳號清單</button>' +
+    (list.length ? '<div class="panel">' + list.map(function(m){
+      return '<div class="row"><span class="ficon">' + (m.role === 'admin' ? '👑' : '👤') + '</span><div class="rt"><b>' + esc(m.name || '') + '</b><span>' + esc(m.email || '') + '・' + (m.role === 'admin' ? '管理員' : '員工') + (m.active === false ? '・已停用' : '') + '</span></div>' +
+        '<button class="btn btn-sm" data-act="edit-member" data-id="' + m.id + '">編輯</button>' +
+        '<button class="btn btn-sm btn-ghost" data-act="del-member" data-id="' + m.id + '">刪除</button></div>';
+    }).join('') + '</div>' : '<div class="empty"><span class="big">👥</span>尚未新增成員</div>');
+}
+function memberForm(id){
+  var m = id === 'new' ? { id: '', name: '', email: '', role: 'staff', active: true } : (findMemberById(id) || {});
+  return '<div class="panel"><form data-form="member">' +
+    '<div class="field"><label>姓名</label><input name="name" required value="' + esc(m.name || '') + '"></div>' +
+    '<div class="field"><label>信箱（登入帳號）</label><input name="email" type="email" required value="' + esc(m.email || '') + '"></div>' +
+    '<div class="field"><label>角色</label><select name="role"><option value="staff"' + (m.role === 'admin' ? '' : ' selected') + '>員工</option><option value="admin"' + (m.role === 'admin' ? ' selected' : '') + '>管理員</option></select></div>' +
+    '<label class="checks"><input type="checkbox" name="active" ' + (m.active === false ? '' : 'checked') + '> 啟用（停用後無法看到自己的權限）</label>' +
+    '<input type="hidden" name="id" value="' + esc(m.id || '') + '">' +
+    '<button class="btn btn-primary btn-block" type="submit">儲存成員</button>' +
+    '<button class="btn btn-ghost btn-block" style="margin-top:8px" type="button" data-act="cancel-member">取消</button></form></div>';
+}
+function adminSettings(){
+  var s = settings();
+  return '<div class="panel"><form data-form="settings">' +
+    '<div class="kv" style="margin-bottom:10px"><b>平台外觀與文字（全部可自訂）</b></div>' +
+    '<div class="field"><label>平台名稱</label><input name="app_name" required value="' + esc(s.app_name) + '"></div>' +
+    '<div class="field"><label>副標題</label><input name="app_sub" value="' + esc(s.app_sub) + '"></div>' +
+    '<div class="row2"><div class="field"><label>Logo 字</label><input name="logo_char" maxlength="2" value="' + esc(s.logo_char) + '"></div>' +
+    '<div class="field"><label>金色·亮</label><input name="gold1" type="color" value="' + esc(s.gold1) + '"></div></div>' +
+    '<div class="row2"><div class="field"><label>金色·暗</label><input name="gold2" type="color" value="' + esc(s.gold2) + '"></div>' +
+    '<div class="field"><label>金色上的字色</label><input name="gold_tx" type="color" value="' + esc(s.gold_tx) + '"></div></div>' +
+    '<div class="row2"><div class="field"><label>主色·亮</label><input name="primary1" type="color" value="' + esc(s.primary1) + '"></div>' +
+    '<div class="field"><label>主色·暗</label><input name="primary2" type="color" value="' + esc(s.primary2) + '"></div></div>' +
+    '<div class="field"><label>首頁歡迎語</label><textarea name="welcome">' + esc(s.welcome) + '</textarea></div>' +
+    '<button class="btn btn-primary btn-block" type="submit">儲存設置</button></form></div>';
+}
+function adminSql(){
+  return '<div class="panel"><div class="kv" style="margin-bottom:10px">在 Supabase 控制台左側 <b>SQL Editor</b> → New query → 貼上 → <b>Run</b>，執行一次即可。之後員工資料才會進雲端、共用同一份課程。<br><b>注意：</b>政策會把課程與紀錄限縮為「已登入員工才可讀取」，未登入者讀不到。</div>' +
+    '<button class="btn btn-primary btn-block" data-act="copy-sql">複製建表 SQL</button>' +
+    '<button class="btn btn-block" style="margin-top:8px" data-act="reload-cloud">重新偵測雲端連線</button>' +
+    '<div class="kv" style="margin:12px 0 6px"><b>內容預覽</b></div>' +
+    '<div class="mono">' + esc(SQL_SCHEMA) + '</div></div>';
+}
+function adminData(){
+  return '<div class="panel"><div class="kv" style="margin-bottom:10px"><b>備份與還原</b><br>匯出目前這份課程與紀錄（JSON 檔）存到你電腦；匯入可覆蓋。免費方案的資料庫<b>不會自動備份</b>，建議每月匯出一次。</div>' +
+    '<button class="btn btn-block" data-act="backup-export">匯出備份檔</button>' +
+    '<button class="btn btn-block" style="margin-top:8px" data-act="backup-import">匯入備份檔</button>' +
+    '<input type="file" id="backupFile" accept="application/json,.json" style="display:none">' +
+    '<div class="kv" style="margin-top:12px">目前資料量：課程 ' + cache.edu_courses.length + '・單元 ' + cache.edu_lessons.length + '・成員 ' + cache.edu_members.length + '・紀錄 ' + cache.edu_progress.length + '</div></div>';
+}
+
+/* ---------------- 建表 SQL（含 RLS：限已登入員工） ---------------- */
+var SQL_SCHEMA = [
+'-- 忠鍵工業 · 內部學習平台：建表 + 權限（在 Supabase SQL Editor 執行一次）',
+'create table if not exists edu_courses (',
+'  id text primary key, title text, descr text, emoji text, cover text,',
+'  sort int default 0, active boolean default true, created_at timestamptz default now()',
+');',
+'create table if not exists edu_lessons (',
+'  id text primary key, course_id text, title text, kind text default \'text\',',
+'  file_id text, url text, body text, minutes int default 10, sort int default 0, created_at timestamptz default now()',
+');',
+'create table if not exists edu_progress (',
+'  id text primary key, user_id text, user_email text, course_id text, lesson_id text,',
+'  status text default \'done\', completed_at timestamptz default now()',
+');',
+'create table if not exists edu_members (',
+'  id text primary key, name text, email text, role text default \'staff\',',
+'  active boolean default true, created_at timestamptz default now()',
+');',
+'create table if not exists edu_settings (',
+'  id text primary key, app_name text, app_sub text, logo_char text,',
+'  gold1 text, gold2 text, gold_tx text, primary1 text, primary2 text, welcome text, updated_at timestamptz default now()',
+');',
+'',
+'alter table edu_courses enable row level security;',
+'alter table edu_lessons enable row level security;',
+'alter table edu_progress enable row level security;',
+'alter table edu_members enable row level security;',
+'alter table edu_settings enable row level security;',
+'',
+'-- 目前是「管理員」嗎？依 edu_members 名單判斷（函式用 definer 以避免政策互相擋住）',
+'create or replace function edu_is_admin() returns boolean',
+'language sql security definer stable set search_path = public as $$',
+'  select exists (',
+'    select 1 from edu_members m',
+'    where m.active is distinct from false',
+'      and m.role = \'admin\'',
+'      and lower(coalesce(m.email,\'\')) = lower(coalesce(auth.jwt() ->> \'email\',\'\'))',
+'  );',
+'$$;',
+'',
+'-- 課程／單元：已登入者可讀，僅管理員可寫',
+'drop policy if exists edu_read on edu_courses; drop policy if exists edu_admin on edu_courses;',
+'drop policy if exists edu_read on edu_lessons; drop policy if exists edu_admin on edu_lessons;',
+'drop policy if exists edu_read on edu_settings; drop policy if exists edu_admin on edu_settings;',
+'drop policy if exists edu_read on edu_members; drop policy if exists edu_admin on edu_members;',
+'drop policy if exists edu_read on edu_progress; drop policy if exists edu_write on edu_progress; drop policy if exists edu_admin on edu_progress;',
+'create policy edu_read on edu_courses for select to authenticated using (true);',
+'create policy edu_admin on edu_courses for all to authenticated using (edu_is_admin()) with check (edu_is_admin());',
+'create policy edu_read on edu_lessons for select to authenticated using (true);',
+'create policy edu_admin on edu_lessons for all to authenticated using (edu_is_admin()) with check (edu_is_admin());',
+'create policy edu_read on edu_settings for select to authenticated using (true);',
+'create policy edu_admin on edu_settings for all to authenticated using (edu_is_admin()) with check (edu_is_admin());',
+'create policy edu_read on edu_members for select to authenticated using (true);',
+'create policy edu_admin on edu_members for all to authenticated using (edu_is_admin()) with check (edu_is_admin());',
+'-- 學習紀錄：每人只看得到、寫得了自己的；管理員可全域查看與清理',
+'create policy edu_read on edu_progress for select to authenticated using (user_id = (auth.uid())::text or edu_is_admin());',
+'create policy edu_write on edu_progress for insert to authenticated with check (user_id = (auth.uid())::text);',
+'create policy edu_admin on edu_progress for all to authenticated using (edu_is_admin()) with check (edu_is_admin());',
+'',
+'-- 把下面這行改成你自己的登入信箱，第一個管理員就是你',
+'insert into edu_members (id, name, email, role) values',
+'  (\'m-admin\', \'管理員\', \'edu.admin@zhongjian.probesite.com\', \'admin\')',
+'  on conflict (id) do update set email = excluded.email, role = \'admin\', active = true;',
+'',
+'-- 教材檔案沿用既有 files 表與 docs 桶（若要完全封閉，再把 files 政策改為 to authenticated）',
+'insert into edu_settings (id, app_name, app_sub, logo_char, gold1, gold2, gold_tx, primary1, primary2, welcome)',
+'values (\'app\', \'忠鍵工業 · 內部學習\', \'員工教育訓練平台\', \'忠\', \'#f7d878\', \'#e9b23f\', \'#7a5200\', \'#ff8a3d\', \'#ff5f2e\',',
+'  \'歡迎使用內部學習平台。請依課程順序完成研讀並標記，紀錄會自動保存。\')',
+'  on conflict (id) do nothing;'
+].join('\n');
+
+/* ---------------- 備份 / 匯出 ---------------- */
+function download(name, text, type){
+  var blob = new Blob([text], { type: type || 'application/octet-stream' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 400);
+}
+function exportBackup(){
+  var data = { exported_at: new Date().toISOString(), edu_courses: cache.edu_courses, edu_lessons: cache.edu_lessons, edu_progress: cache.edu_progress, edu_members: cache.edu_members, settings: cache.settings };
+  download('zhongjian-edu-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(data, null, 2), 'application/json');
+  toast('備份檔已下載');
+}
+function importBackup(input){
+  var f = input.files && input.files[0];
+  if (!f) return;
+  var r = new FileReader();
+  r.onload = async function(){
+    try {
+      var d = JSON.parse(r.result);
+      ['edu_courses', 'edu_lessons', 'edu_progress', 'edu_members'].forEach(function(t){ if (Array.isArray(d[t])) cache[t] = d[t]; });
+      if (d.settings) cache.settings = Object.assign({}, DEFAULT_SETTINGS, d.settings);
+      persist(); render(); toast('已匯入備份');
+      if (state.cloudReady && cloudOk()) {
+        for (var i = 0; i < ['edu_courses', 'edu_lessons', 'edu_progress', 'edu_members'].length; i++) {
+          var t = ['edu_courses', 'edu_lessons', 'edu_progress', 'edu_members'][i];
+          await sb().from(t).upsert(cache[t]);
+        }
+        toast('備份已同步到雲端');
+      }
+    } catch(e){ toast('匯入失敗：' + e.message); }
+    input.value = '';
+  };
+  r.readAsText(f);
+}
+function exportCsv(){
+  var rows = [['姓名', '信箱', '單元', '課程', '完成時間']];
+  cache.edu_progress.slice().sort(function(a, b){ return String(a.completed_at || '').localeCompare(String(b.completed_at || '')); })
+    .forEach(function(p){
+      var l = findLesson(p.lesson_id), c = l ? findCourse(l.course_id) : null, m = findMember(p.user_email);
+      rows.push([(m && m.name) || p.user_email || p.user_id || '', p.user_email || '', l ? l.title : (p.lesson_id || ''), c ? c.title : '', String(p.completed_at || '').slice(0, 19).replace('T', ' ')]);
+    });
+  var csv = '\ufeff' + rows.map(function(r){ return r.map(function(c){ return '"' + String(c).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
+  download('zhongjian-learning-records-' + new Date().toISOString().slice(0, 10) + '.csv', csv, 'text/csv');
+  toast('學習紀錄已匯出');
+}
+async function copyText(t, msg){
+  try { await navigator.clipboard.writeText(t); toast(msg); }
+  catch(e){
+    var ta = document.createElement('textarea');
+    ta.value = t; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); toast(msg); } catch(e2){ toast('複製失敗，請手動選取'); }
+    ta.remove();
+  }
+}
+
+/* ---------------- 檔案上傳（教材） ---------------- */
+async function uploadLessonFile(input){
+  var f = input.files && input.files[0];
+  if (!f) return null;
+  var kind = 'file';
+  if (/\.html?$/i.test(f.name)) kind = 'file';
+  else if (f.type && f.type.indexOf('image/') === 0) kind = 'file';
+  if (state.cloudReady && cloudOk()) {
+    var safeName = f.name.replace(/[^\x20-\x7E]+/g, '_').replace(/[\/\\:*?"<>|#%{}|^~\[\]]+/g, '_').replace(/\s+/g, '_');
+    var path = 'edu_' + Date.now() + '_' + (safeName || 'file');
+    var up = await sb().storage.from('docs').upload(path, f, { contentType: f.type || 'application/octet-stream' });
+    if (!up.error) {
+      var pub = sb().storage.from('docs').getPublicUrl(path);
+      var row = await dbAdd('files', { name: f.name, kind: kind, url: pub.data.publicUrl, size: f.size });
+      input.value = '';
+      return row;
+    }
+    toast('上傳失敗（' + up.error.message + '）');
+    return null;
+  }
+  if (f.size > 4 * 1024 * 1024) { toast('示範模式檔案需小於 4MB'); return null; }
+  var r = new FileReader();
+  var dataUrl = await new Promise(function(res){ r.onload = function(){ res(r.result); }; r.readAsDataURL(f); });
+  var row2 = await dbAdd('files', { name: f.name, kind: kind, url: dataUrl, size: f.size });
+  input.value = '';
+  return row2;
+}
+
+/* ---------------- 路由與渲染 ---------------- */
+function route(){
+  var h = location.hash || '#/';
+  return h.replace(/^#\//, '').split('/').filter(Boolean);
+}
+function render(){
+  var p = route(), app = $('#app'), html = '', showTab = true;
+  document.title = settings().app_name;
+  if (!state.me) { showTab = false; html = viewLogin(); }
+  else if (p[0] === 'admin') { showTab = false; html = isAdmin() ? viewAdmin() : viewHome(); }
+  else if (p[0] === 'course' && p[1]) html = viewCourse(p[1]);
+  else if (p[0] === 'lesson' && p[1]) { showTab = false; html = viewLesson(p[1]); }
+  else if (p[0] === 'me') html = viewMe();
+  else html = viewHome();
+  app.innerHTML = html + (showTab ? tabbarHTML(p[0] || 'home') : '');
+  document.body.classList.toggle('offline', !navigator.onLine);
+  window.scrollTo(0, 0);
+}
+function tabbarHTML(cur){
+  var tabs = [['home', '#/', '🏠', '課程'], ['me', '#/me', '🙋', '我的']];
+  if (isAdmin()) tabs.push(['admin', '#/admin', '⚙️', '管理']);
+  return '<div class="tabbar">' + tabs.map(function(t){
+    return '<button class="tab' + (cur === t[0] ? ' on' : '') + '" data-act="go" data-hash="' + t[1] + '"><span class="ico">' + t[2] + '</span>' + t[3] + '</button>';
+  }).join('') + '</div>';
+}
+
+/* ---------------- 事件 ---------------- */
+document.addEventListener('click', async function(e){
+  var el = e.target.closest('[data-act]');
+  if (!el) return;
+  var act = el.dataset.act, id = el.dataset.id;
+  if (act === 'go') { location.hash = el.dataset.hash; return; }
+  if (act === 'do-login') { await signIn(($('#lgEmail') || {}).value, ($('#lgPass') || {}).value); return; }
+  if (act === 'demo-enter') { demoEnter(); return; }
+  if (act === 'logout') { await signOut(); return; }
+  if (act === 'open-course') { location.hash = '#/course/' + id; return; }
+  if (act === 'open-lesson') { location.hash = '#/lesson/' + id; return; }
+  if (act === 'open-material') { openMaterial(findFile(id), el.dataset.title); return; }
+  if (act === 'close-html') { var ov = document.getElementById('htmlOverlay'); if (ov) ov.remove(); return; }
+  if (act === 'mark') { var l1 = findLesson(id); if (l1) await markDone(l1, true); return; }
+  if (act === 'unmark') { var l2 = findLesson(id); if (l2) await markDone(l2, false); return; }
+  if (act === 'admin-tab') { state.adminTab = id; state.editCourse = null; state.editLesson = null; state.editMember = null; render(); return; }
+  if (act === 'new-course') { state.editCourse = 'new'; render(); return; }
+  if (act === 'edit-course') { state.editCourse = id; render(); return; }
+  if (act === 'cancel-course') { state.editCourse = null; render(); return; }
+  if (act === 'del-course') {
+    if (confirm('刪除課程？其單元與紀錄會一併移除。')) {
+      lessonsOf(id).forEach(function(l){ cache.edu_lessons = cache.edu_lessons.filter(function(x){ return x.id !== l.id; }); });
+      await dbDel('edu_courses', id);
+    }
+    return;
+  }
+  if (act === 'new-lesson') { state.editLesson = 'new'; render(); return; }
+  if (act === 'edit-lesson') { state.editLesson = id; render(); return; }
+  if (act === 'cancel-lesson') { state.editLesson = null; render(); return; }
+  if (act === 'del-lesson') { if (confirm('刪除該單元？')) await dbDel('edu_lessons', id); return; }
+  if (act === 'new-member') { state.editMember = 'new'; render(); return; }
+  if (act === 'edit-member') { state.editMember = id; render(); return; }
+  if (act === 'cancel-member') { state.editMember = null; render(); return; }
+  if (act === 'del-member') { if (confirm('刪除成員？')) await dbDel('edu_members', id); return; }
+  if (act === 'del-record') { if (confirm('刪除這筆學習紀錄？')) await dbDel('edu_progress', id); return; }
+  if (act === 'copy-sql') { copyText(SQL_SCHEMA, 'SQL 已複製，請到 SQL Editor 貼上執行'); return; }
+  if (act === 'copy-accounts') {
+    var txt = cache.edu_members.map(function(m){ return (m.name || '') + ' | ' + (m.email || '') + ' | ' + (m.role === 'admin' ? '管理員' : '員工'); }).join('\n');
+    copyText(txt || '（成員清單目前是空的）', '成員清單已複製');
+    return;
+  }
+  if (act === 'reload-cloud') {
+    if (!state.me) { toast('請先登入'); return; }
+    var ok = await loadCloud();
+    toast(ok ? '雲端已連線（正式資料模式）' : '仍讀不到雲端資料表：請先執行「建表 SQL」');
+    return;
+  }
+  if (act === 'backup-export') { exportBackup(); return; }
+  if (act === 'backup-import') { var bf = document.getElementById('backupFile'); if (bf) bf.click(); return; }
+  if (act === 'export-csv') { exportCsv(); return; }
+});
+document.addEventListener('change', function(e){
+  var el = e.target;
+  if (el.dataset && el.dataset.act === 'course-filter') { state.courseFilter = el.value; render(); }
+});
+document.addEventListener('submit', async function(e){
+  var form = e.target.closest('form[data-form]');
+  if (!form) return;
+  e.preventDefault();
+  var fd = new FormData(form), kind = form.dataset.form;
+  if (kind === 'course') {
+    var row = {
+      id: fd.get('id') || uid(),
+      title: String(fd.get('title') || '').trim(),
+      descr: String(fd.get('descr') || '').trim(),
+      emoji: String(fd.get('emoji') || '').trim(),
+      cover: String(fd.get('cover') || '').trim(),
+      sort: Number(fd.get('sort') || 0),
+      active: fd.get('active') !== null
+    };
+    if (!row.title) { toast('請填課程名稱'); return; }
+    var existed = !!findCourse(row.id);
+    if (existed) await dbUpd('edu_courses', row); else await dbAdd('edu_courses', row);
+    state.editCourse = null; toast('課程已儲存'); render();
+  } else if (kind === 'lesson') {
+    var upInput = $('#lessonFile');
+    var upRow = upInput && upInput.files && upInput.files[0] ? await uploadLessonFile(upInput) : null;
+    var lrow = {
+      id: fd.get('id') || uid(),
+      course_id: fd.get('course_id'),
+      title: String(fd.get('title') || '').trim(),
+      kind: fd.get('kind'),
+      file_id: upRow ? upRow.id : (fd.get('file_id') || ''),
+      url: String(fd.get('url') || '').trim(),
+      body: String(fd.get('body') || ''),
+      minutes: Number(fd.get('minutes') || 0),
+      sort: Number(fd.get('sort') || 0)
+    };
+    if (!lrow.title) { toast('請填單元名稱'); return; }
+    var lexist = !!findLesson(lrow.id);
+    if (lexist) await dbUpd('edu_lessons', lrow); else await dbAdd('edu_lessons', lrow);
+    state.editLesson = null; toast('單元已儲存'); render();
+  } else if (kind === 'member') {
+    var mrow = {
+      id: fd.get('id') || uid(),
+      name: String(fd.get('name') || '').trim(),
+      email: String(fd.get('email') || '').trim().toLowerCase(),
+      role: fd.get('role') || 'staff',
+      active: fd.get('active') !== null
+    };
+    if (!mrow.email) { toast('請填信箱'); return; }
+    var mexist = !!findMemberById(mrow.id);
+    if (mexist) await dbUpd('edu_members', mrow); else await dbAdd('edu_members', mrow);
+    state.editMember = null;
+    if (state.me && mrow.email === String(state.me.email).toLowerCase()) state.me.role = mrow.role;
+    toast('成員已儲存'); render();
+  } else if (kind === 'settings') {
+    var srow = {
+      id: 'app',
+      app_name: String(fd.get('app_name') || '').trim(),
+      app_sub: String(fd.get('app_sub') || '').trim(),
+      logo_char: String(fd.get('logo_char') || '').trim(),
+      gold1: fd.get('gold1'), gold2: fd.get('gold2'), gold_tx: fd.get('gold_tx'),
+      primary1: fd.get('primary1'), primary2: fd.get('primary2'),
+      welcome: String(fd.get('welcome') || '')
+    };
+    if (state.cloudReady && cloudOk()) {
+      var r = await sb().from('edu_settings').upsert(srow);
+      if (r && r.error) toast('雲端保存失敗：' + r.error.message);
+    }
+    cache.settings = Object.assign({}, cache.settings, srow);
+    persist(); applyTheme(); setupPWA(); render(); toast('設置已保存');
+  }
+});
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Enter' && !state.me && (e.target.id === 'lgEmail' || e.target.id === 'lgPass')) {
+    e.preventDefault(); signIn(($('#lgEmail') || {}).value, ($('#lgPass') || {}).value);
+  }
+});
+window.addEventListener('hashchange', render);
+window.addEventListener('online', function(){ render(); });
+window.addEventListener('offline', function(){ render(); });
+
+/* ---------------- PWA ---------------- */
+function pngIcon(size){
+  var c = document.createElement('canvas'); c.width = c.height = size;
+  var x = c.getContext('2d'), s = settings();
+  var g = x.createLinearGradient(0, 0, size, size);
+  g.addColorStop(0, s.gold1); g.addColorStop(1, s.gold2);
+  x.fillStyle = g; x.fillRect(0, 0, size, size);
+  x.fillStyle = 'rgba(255,255,255,.25)'; x.beginPath(); x.arc(size * .82, size * .16, size * .3, 0, Math.PI * 2); x.fill();
+  x.fillStyle = s.gold_tx; x.font = 'bold ' + Math.round(size * .5) + 'px sans-serif';
+  x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(s.logo_char || '忠', size / 2, size * .55);
+  return c.toDataURL('image/png');
+}
+var manifestLink = null, appleLink = null;
+function setupPWA(){
+  var s = settings();
+  var manifest = {
+    name: s.app_name, short_name: s.app_name,
+    start_url: location.pathname, scope: location.pathname.replace(/[^/]*$/, ''),
+    display: 'standalone', background_color: '#f5f6f8', theme_color: '#f5f6f8',
+    icons: [{ src: pngIcon(192), sizes: '192x192', type: 'image/png', purpose: 'any' },
+            { src: pngIcon(512), sizes: '512x512', type: 'image/png', purpose: 'any maskable' }]
+  };
+  if (!manifestLink) { manifestLink = document.createElement('link'); manifestLink.rel = 'manifest'; document.head.appendChild(manifestLink); }
+  manifestLink.href = 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifest));
+  if (!appleLink) { appleLink = document.createElement('link'); appleLink.rel = 'apple-touch-icon'; document.head.appendChild(appleLink); }
+  appleLink.href = pngIcon(180);
+}
+
+/* ---------------- 啟動 ---------------- */
+(async function boot(){
+  applyTheme(); setupPWA(); render();
+  if (!cloudOk()) return;
+  await restoreSession();
+  if (state.me) { var ok = await loadCloud(); if (!ok) await loadFilesAnon(); }
+  else await loadFilesAnon();
+})();
+</script>
+</body>
+</html>
