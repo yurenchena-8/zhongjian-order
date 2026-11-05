@@ -169,12 +169,14 @@ function sb(){
   return _sb;
 }
 function cloudOk(){ return !!sb() && navigator.onLine; }
+/* files 表沿用點餐測試時建好的那張（政策開放），edu 表還沒建時教材也能進雲端 */
+function cloudWriteOk(t){ return cloudOk() && (state.cloudReady || t === 'files'); }
 
 var state = {
   me: null,            // { user, email, name, role }
   cloudReady: false,   // 雲端表與政策已就緒
   adminTab: 'courses',
-  editCourse: null, editLesson: null, editMember: null,
+  editCourse: null, editLesson: null, editMember: null, editFile: null,
   courseFilter: '', sqlOpen: false
 };
 function isAdmin(){ return !!state.me && state.me.role === 'admin'; }
@@ -226,6 +228,7 @@ function demoEnter(){
   state.cloudReady = false;
   location.hash = '#/';
   render();
+  loadFilesAnon();
 }
 
 /* 雲端讀取：任何一張表回錯就代表 SQL 還沒執行，維持示範資料 */
@@ -262,25 +265,31 @@ async function loadFilesAnon(){
 async function dbAdd(t, row){
   row.id = row.id || uid();
   row.created_at = row.created_at || new Date().toISOString();
-  if (state.cloudReady && cloudOk()) {
+  if (cloudWriteOk(t)) {
     var res = await sb().from(t).insert(row).select();
-    if (res && res.error) { toast('雲端寫入失敗：' + res.error.message); return row; }
-    if (res && res.data && res.data[0]) row = res.data[0];
+    if (res && res.error) { if (state.cloudReady) { toast('雲端寫入失敗：' + res.error.message); return row; } toast('雲端寫入被擋下，已先存本機'); }
+    else if (res && res.data && res.data[0]) row = res.data[0];
   }
   upsertCache(t, row); persist();
   return row;
 }
 async function dbUpd(t, row){
-  if (state.cloudReady && cloudOk()) {
+  if (cloudWriteOk(t)) {
     var res = await sb().from(t).update(row).eq('id', row.id);
-    if (res && res.error) { toast('雲端更新失敗：' + res.error.message); return; }
+    if (res && res.error) {
+      if (state.cloudReady) { toast('雲端更新失敗：' + res.error.message); return; }
+      toast('雲端更新被擋下，僅改本機');
+    }
   }
   upsertCache(t, row); persist(); render();
 }
 async function dbDel(t, id){
-  if (state.cloudReady && cloudOk()) {
+  if (cloudWriteOk(t)) {
     var res = await sb().from(t).delete().eq('id', id);
-    if (res && res.error) { toast('雲端刪除失敗：' + res.error.message); return; }
+    if (res && res.error) {
+      if (state.cloudReady) { toast('雲端刪除失敗：' + res.error.message); return; }
+      toast('雲端刪除被擋下，本機已移除（下次載入會還原）');
+    }
   }
   cache[t] = cache[t].filter(function(r){ return r.id !== id; });
   persist(); render();
@@ -493,10 +502,10 @@ function viewMe(){
 /* ---------------- 視圖：管理 ---------------- */
 function viewAdmin(){
   var t = state.adminTab;
-  var tabs = [['courses', '課程'], ['lessons', '單元'], ['records', '紀錄'], ['members', '成員'], ['settings', '設置'], ['sql', '建表 SQL'], ['data', '資料備份']];
+  var tabs = [['courses', '課程'], ['lessons', '單元'], ['files', '教材'], ['records', '紀錄'], ['members', '成員'], ['settings', '設置'], ['sql', '建表 SQL'], ['data', '資料備份']];
   return '<div class="backbar"><button class="iconbtn" data-act="go" data-hash="#/">‹</button>管理後台</div>' +
     '<div class="tabs2">' + tabs.map(function(x){ return '<button class="' + (t === x[0] ? 'on' : '') + '" data-act="admin-tab" data-id="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
-    ({ courses: adminCourses, lessons: adminLessons, records: adminRecords, members: adminMembers, settings: adminSettings, sql: adminSql, data: adminData }[t] || adminCourses)();
+    ({ courses: adminCourses, lessons: adminLessons, files: adminFiles, records: adminRecords, members: adminMembers, settings: adminSettings, sql: adminSql, data: adminData }[t] || adminCourses)();
 }
 function adminCourses(){
   if (state.editCourse) return courseForm(state.editCourse);
@@ -562,6 +571,34 @@ function lessonForm(id){
     '<button class="btn btn-primary btn-block" type="submit">儲存單元</button>' +
     '<button class="btn btn-ghost btn-block" style="margin-top:8px" type="button" data-act="cancel-lesson">取消</button></form></div>';
 }
+function fileUsedBy(id){ return cache.edu_lessons.filter(function(l){ return l.file_id === id; }); }
+function fmtSize(n){ n = Number(n || 0); if (!n) return ''; return n > 1024 * 1024 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+function adminFiles(){
+  if (state.editFile) return fileForm(state.editFile);
+  var list = cache.files.filter(function(f){ return f.kind !== 'logo'; });
+  return '<div class="notice blue"><b>教材庫</b>上傳一次、各課程都能選用。改名、換檔、刪除都在這一頁；用到它的單元會同時更新。</div>' +
+    '<div class="panel"><form data-form="file-new">' +
+      '<div class="field"><label>教材名稱（可自取，例：冷鍛作業流程.html）</label><input name="name" placeholder="留空＝用檔案原名"></div>' +
+      '<div class="field"><label>選擇檔案（HTML／PDF／Excel／Word／圖片）</label><input type="file" id="newFileInput"></div>' +
+      '<button class="btn btn-primary btn-block" type="submit">＋ 上傳新教材</button></form></div>' +
+    (list.length ? '<div class="panel">' + list.map(function(f){
+      var used = fileUsedBy(f.id).length;
+      return '<div class="row"><span class="ficon">' + kindIcon(isHtmlFile(f) ? 'html' : 'file') + '</span><div class="rt"><b>' + esc(f.name) + '</b><span>' + (fmtSize(f.size) || '連結檔案') + '・' + (used ? '用在 ' + used + ' 個單元' : '尚未被使用') + '</span></div>' +
+        '<button class="btn btn-sm" data-act="open-file" data-id="' + f.id + '">開啟</button>' +
+        '<button class="btn btn-sm" data-act="edit-file" data-id="' + f.id + '">編輯</button>' +
+        '<button class="btn btn-sm btn-ghost" data-act="del-file" data-id="' + f.id + '">刪除</button></div>';
+    }).join('') + '</div>' : '<div class="empty"><span class="big">📁</span>尚未上傳教材</div>');
+}
+function fileForm(id){
+  var f = findFile(id) || {};
+  return '<div class="panel"><form data-form="file">' +
+    '<div class="field"><label>教材名稱</label><input name="name" required value="' + esc(f.name || '') + '"></div>' +
+    '<div class="field"><label>換成別的檔案（不選＝維持原檔）</label><input type="file" id="replaceFileInput"></div>' +
+    '<div class="kv" style="margin-bottom:10px">目前檔案：<a href="' + esc(f.url || '#') + '" target="_blank" rel="noopener">開舊檔 ↗</a></div>' +
+    '<input type="hidden" name="id" value="' + esc(f.id || '') + '">' +
+    '<button class="btn btn-primary btn-block" type="submit">儲存教材</button>' +
+    '<button class="btn btn-ghost btn-block" style="margin-top:8px" type="button" data-act="cancel-file">取消</button></form></div>';
+}
 function adminRecords(){
   var rows = cache.edu_progress.slice().sort(function(a, b){ return String(b.completed_at || '').localeCompare(String(a.completed_at || '')); });
   var byMember = {};
@@ -624,12 +661,26 @@ function adminSettings(){
     '<div class="field"><label>首頁歡迎語</label><textarea name="welcome">' + esc(s.welcome) + '</textarea></div>' +
     '<button class="btn btn-primary btn-block" type="submit">儲存設置</button></form></div>';
 }
+function sbRef(){ return String(CONFIG.SUPABASE_URL || '').replace(/^https:\/\//, '').split('.')[0]; }
+/* 建表時把「第一個管理員」自動填成目前登入的信箱，免得還要自己改 SQL */
+function sqlText(){
+  var em = (state.me && state.me.email && state.me.email !== 'demo@local') ? String(state.me.email).toLowerCase() : 'edu.admin@zhongjian.probesite.com';
+  return { sql: SQL_SCHEMA.replace("'edu.admin@zhongjian.probesite.com'", "'" + em + "'"), email: em };
+}
 function adminSql(){
-  return '<div class="panel"><div class="kv" style="margin-bottom:10px">在 Supabase 控制台左側 <b>SQL Editor</b> → New query → 貼上 → <b>Run</b>，執行一次即可。之後員工資料才會進雲端、共用同一份課程。<br><b>注意：</b>政策會把課程與紀錄限縮為「已登入員工才可讀取」，未登入者讀不到。</div>' +
-    '<button class="btn btn-primary btn-block" data-act="copy-sql">複製建表 SQL</button>' +
-    '<button class="btn btn-block" style="margin-top:8px" data-act="reload-cloud">重新偵測雲端連線</button>' +
-    '<div class="kv" style="margin:12px 0 6px"><b>內容預覽</b></div>' +
-    '<div class="mono">' + esc(SQL_SCHEMA) + '</div></div>';
+  var q = sqlText();
+  return '<div class="notice blue"><b>這一步只做一次</b>讓手機和電腦共用同一份課程與紀錄。不做也能用，只是資料留在這台裝置上。<br>' +
+    '① 按下面「① 開啟 Supabase SQL 編輯器」→ 登入後會直接開在新分頁<br>' +
+    '② 按「② 複製建表 SQL」→ 到那個分頁的大輸入框裡<b>長按 → 貼上</b><br>' +
+    '③ 按右下角藍色 <b>Run</b>（執行）→ 看到 Success 就完成<br>' +
+    '④ 回到這裡按「重新偵測雲端連線」，訊息變成「雲端已連線」即可。<br>' +
+    '建好後的第一個管理員：<b>' + esc(q.email) + '</b>（您目前登入的信箱）。<br>' +
+    '卡住時把畫面截圖傳給我，我指下一個按鈕。</div>' +
+    '<a class="btn btn-primary btn-block" target="_blank" rel="noopener" href="https://supabase.com/dashboard/project/' + esc(sbRef()) + '/sql/new">① 開啟 Supabase SQL 編輯器</a>' +
+    '<button class="btn btn-block" style="margin-top:8px" data-act="copy-sql">② 複製建表 SQL</button>' +
+    '<button class="btn btn-block" style="margin-top:8px" data-act="reload-cloud">④ 重新偵測雲端連線</button>' +
+    '<div class="kv" style="margin:12px 0 6px"><b>內容預覽</b>（不用自己打字，複製即可）</div>' +
+    '<div class="mono">' + esc(q.sql) + '</div></div>';
 }
 function adminData(){
   return '<div class="panel"><div class="kv" style="margin-bottom:10px"><b>備份與還原</b><br>匯出目前這份課程與紀錄（JSON 檔）存到你電腦；匯入可覆蓋。免費方案的資料庫<b>不會自動備份</b>，建議每月匯出一次。</div>' +
@@ -774,7 +825,7 @@ async function uploadLessonFile(input){
   var kind = 'file';
   if (/\.html?$/i.test(f.name)) kind = 'file';
   else if (f.type && f.type.indexOf('image/') === 0) kind = 'file';
-  if (state.cloudReady && cloudOk()) {
+  if (cloudOk()) {
     var safeName = f.name.replace(/[^\x20-\x7E]+/g, '_').replace(/[\/\\:*?"<>|#%{}|^~\[\]]+/g, '_').replace(/\s+/g, '_');
     var path = 'edu_' + Date.now() + '_' + (safeName || 'file');
     var up = await sb().storage.from('docs').upload(path, f, { contentType: f.type || 'application/octet-stream' });
@@ -784,8 +835,7 @@ async function uploadLessonFile(input){
       input.value = '';
       return row;
     }
-    toast('上傳失敗（' + up.error.message + '）');
-    return null;
+    if (state.cloudReady) { toast('上傳失敗（' + up.error.message + '）'); return null; }
   }
   if (f.size > 4 * 1024 * 1024) { toast('示範模式檔案需小於 4MB'); return null; }
   var r = new FileReader();
@@ -836,7 +886,7 @@ document.addEventListener('click', async function(e){
   if (act === 'close-html') { var ov = document.getElementById('htmlOverlay'); if (ov) ov.remove(); return; }
   if (act === 'mark') { var l1 = findLesson(id); if (l1) await markDone(l1, true); return; }
   if (act === 'unmark') { var l2 = findLesson(id); if (l2) await markDone(l2, false); return; }
-  if (act === 'admin-tab') { state.adminTab = id; state.editCourse = null; state.editLesson = null; state.editMember = null; render(); return; }
+  if (act === 'admin-tab') { state.adminTab = id; state.editCourse = null; state.editLesson = null; state.editMember = null; state.editFile = null; render(); return; }
   if (act === 'new-course') { state.editCourse = 'new'; render(); return; }
   if (act === 'edit-course') { state.editCourse = id; render(); return; }
   if (act === 'cancel-course') { state.editCourse = null; render(); return; }
@@ -851,12 +901,20 @@ document.addEventListener('click', async function(e){
   if (act === 'edit-lesson') { state.editLesson = id; render(); return; }
   if (act === 'cancel-lesson') { state.editLesson = null; render(); return; }
   if (act === 'del-lesson') { if (confirm('刪除該單元？')) await dbDel('edu_lessons', id); return; }
+  if (act === 'edit-file') { state.editFile = id; render(); return; }
+  if (act === 'cancel-file') { state.editFile = null; render(); return; }
+  if (act === 'open-file') { var ff = findFile(id); if (!ff) return; if (isHtmlFile(ff)) openMaterial(ff, ff.name); else window.open(ff.url, '_blank'); return; }
+  if (act === 'del-file') {
+    var u = fileUsedBy(id);
+    if (!confirm(u.length ? ('有 ' + u.length + ' 個單元正在使用這本教材，刪除後它們會變成「尚未綁定檔案」。仍要刪除？') : '刪除這本教材？')) return;
+    await dbDel('files', id); return;
+  }
   if (act === 'new-member') { state.editMember = 'new'; render(); return; }
   if (act === 'edit-member') { state.editMember = id; render(); return; }
   if (act === 'cancel-member') { state.editMember = null; render(); return; }
   if (act === 'del-member') { if (confirm('刪除成員？')) await dbDel('edu_members', id); return; }
   if (act === 'del-record') { if (confirm('刪除這筆學習紀錄？')) await dbDel('edu_progress', id); return; }
-  if (act === 'copy-sql') { copyText(SQL_SCHEMA, 'SQL 已複製，請到 SQL Editor 貼上執行'); return; }
+  if (act === 'copy-sql') { copyText(sqlText().sql, 'SQL 已複製，請到剛開啟的分頁貼上並按 Run'); return; }
   if (act === 'copy-accounts') {
     var txt = cache.edu_members.map(function(m){ return (m.name || '') + ' | ' + (m.email || '') + ' | ' + (m.role === 'admin' ? '管理員' : '員工'); }).join('\n');
     copyText(txt || '（成員清單目前是空的）', '成員清單已複製');
@@ -910,9 +968,31 @@ document.addEventListener('submit', async function(e){
       sort: Number(fd.get('sort') || 0)
     };
     if (!lrow.title) { toast('請填單元名稱'); return; }
+    if (lrow.file_id && lrow.kind === 'text') lrow.kind = 'file';
     var lexist = !!findLesson(lrow.id);
     if (lexist) await dbUpd('edu_lessons', lrow); else await dbAdd('edu_lessons', lrow);
     state.editLesson = null; toast('單元已儲存'); render();
+  } else if (kind === 'file-new') {
+    var ni = $('#newFileInput');
+    if (!ni || !ni.files || !ni.files[0]) { toast('請選擇要上傳的檔案'); return; }
+    var wantName = String(fd.get('name') || '').trim();
+    var nrow = await uploadLessonFile(ni);
+    if (!nrow) return;
+    if (wantName && nrow.name !== wantName) { nrow.name = wantName; await dbUpd('files', nrow); }
+    state.editFile = null; toast('教材已上傳'); render();
+  } else if (kind === 'file') {
+    var cur = findFile(fd.get('id'));
+    if (!cur) { state.editFile = null; render(); return; }
+    var fname = String(fd.get('name') || '').trim();
+    if (!fname) { toast('請填教材名稱'); return; }
+    var ri = $('#replaceFileInput'), merged = Object.assign({}, cur);
+    if (ri && ri.files && ri.files[0]) {
+      var nrow2 = await uploadLessonFile(ri);
+      if (nrow2) { merged.url = nrow2.url; merged.size = nrow2.size; merged.kind = nrow2.kind; }
+    }
+    merged.name = fname;
+    await dbUpd('files', merged);
+    state.editFile = null; toast('教材已更新'); render();
   } else if (kind === 'member') {
     var mrow = {
       id: fd.get('id') || uid(),
