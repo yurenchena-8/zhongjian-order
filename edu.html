@@ -111,7 +111,7 @@ var SELF_PROXY = /\.vercel\.app$/i.test(location.hostname) ? location.origin + '
 var MIRROR_PROXY = 'https://zhongjian-edu.vercel.app/sb';
 var PHONE_URL = 'https://zhongjian-edu.vercel.app';
 var BASE_KEY = 'edu_api_base';
-var BUILD_V = '2026-11-06-14';
+var BUILD_V = '2026-11-06-15';
 function savedBase(){ try { return localStorage.getItem(BASE_KEY) || ''; } catch(e){ return ''; } }
 CONFIG.SUPABASE_URL = savedBase() || SELF_PROXY || CONFIG.DIRECT_URL;
 function apiBases(){
@@ -1066,9 +1066,13 @@ async function aiSend(){
 }
 async function aiTest(){
   if (!isAdmin()) return;
-  toast('測試連線中…');
-  try { toast('✅ 連線成功：' + (await aiAsk([{ role: 'user', content: '只回四个字：連線成功' }])).slice(0, 40)); }
-  catch(e){ toast('❌ 失敗：' + String((e && e.message) || e).slice(0, 120)); }
+  state.aiBusy = true; render();
+  try {
+    var a = await aiAsk([{ role: 'system', content: '只回答一句話。' }, { role: 'user', content: '一句話自我介紹，說明你是忠鍵平台的 AI 助教。' }]);
+    toast('✅ 連線成功：' + a.slice(0, 40));
+  }
+  catch(e){ toast('❌ 測試失敗：' + String((e && e.message) || e).slice(0, 140)); }
+  state.aiBusy = false; render();
 }
 function adminAi(){
   var c = aiCfg(), k = aiKey(), h = aiHist();
