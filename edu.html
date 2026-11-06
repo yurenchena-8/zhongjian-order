@@ -107,7 +107,7 @@ var SELF_PROXY = /\.vercel\.app$/i.test(location.hostname) ? location.origin + '
 var MIRROR_PROXY = 'https://zhongjian-edu.vercel.app/sb';
 var PHONE_URL = 'https://zhongjian-edu.vercel.app';
 var BASE_KEY = 'edu_api_base';
-var BUILD_V = '2026-11-06-10';
+var BUILD_V = '2026-11-06-11';
 function savedBase(){ try { return localStorage.getItem(BASE_KEY) || ''; } catch(e){ return ''; } }
 CONFIG.SUPABASE_URL = savedBase() || SELF_PROXY || CONFIG.DIRECT_URL;
 function apiBases(){
@@ -523,22 +523,32 @@ function withShim(t){
   if (cut < 0) return shim + t;
   return String(t).slice(0, cut) + shim + String(t).slice(cut);
 }
+/* 員工開互動教材＝唯讀。互動教材（例：模具管理系統）連的是它自己的雲端，不認得員工帳號，
+   所以平台的 RLS 管不到它裡面的「新增／刪除」；改用教材自帶的唯讀開關（URL 參數 m）壓掉。
+   沙箱裡 location.search 恆為空字串，因此直接把讀取的那段換成帶 m 的查詢字串。
+   教材若沒有實作唯讀模式，這段替換不會命中 anything，等於沒改到。 */
+function withReadOnly(t){
+  var s = String(t), from = 'URLSearchParams(location.search)';
+  return s.indexOf(from) >= 0 ? s.split(from).join("URLSearchParams('?m=1')") : s;
+}
 function openMaterial(f, title){
   if (!f) { toast('找不到教材檔案'); return; }
   fetch(mediaUrl(f.url)).then(function(r){
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.text();
   }).then(function(t){
+    var ro = !isAdmin();
     var old = document.getElementById('htmlOverlay');
     if (old) old.remove();
     var ov = document.createElement('div');
     ov.id = 'htmlOverlay';
     ov.innerHTML = '<div class="html-ov-bar"><button class="btn btn-ghost btn-sm" data-act="close-html">✕ 關閉</button>' +
       '<span>' + esc(title || String(f.name || '').replace(/\.html?$/i, '')) + '</span>' +
+      (ro ? '<span class="kv" style="font-size:11px">唯讀・不可新增或刪除</span>' : '') +
       '<a class="btn btn-ghost btn-sm" href="' + esc(mediaUrl(f.url)) + '" download="' + esc(f.name || 'material') + '">下載</a></div>' +
       '<iframe class="html-ov-frame" title="' + esc(f.name || '') + '" sandbox="allow-scripts allow-popups allow-forms allow-modals allow-downloads"></iframe>';
     document.body.appendChild(ov);
-    ov.querySelector('iframe').srcdoc = withShim(t);
+    ov.querySelector('iframe').srcdoc = ro ? withReadOnly(withShim(t)) : withShim(t);
   }).catch(function(e){ toast('載入失敗：' + e.message); });
 }
 
