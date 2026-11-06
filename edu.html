@@ -717,20 +717,31 @@ function accountSheet(){
     return (m.name || '') + ' | ' + (m.email || '（尚未指派帳號）') + ' | ' + (k === me ? '（您自己的帳號，用現有密碼）' : (pw[k] || '（尚未產生密碼）')) + ' | ' + (m.role === 'admin' ? '管理員' : '員工');
   }).join('\n');
 }
-/* 直接寫 auth.users：一次把所有人都開好帳號並設好密碼（等同控制台 Create new user + Auto Confirm） */
+/* 直接寫 auth.users：一次把所有人都開好帳號並設好密碼（等同控制台 Create new user + Auto Confirm）
+   用 DO 區塊而不是 ON CONFLICT，因為 auth.users.email 是部分唯一索引，ON CONFLICT (email) 會報 42P10 */
 function accountSql(){
-  var pw = pwds(), out = ['-- 忠鍵內部學習平台：一次建立/重設所有員工登入帳號（在 Supabase SQL Editor 執行，可重複執行）', 'set search_path = \"$user\", public, extensions;', ''], me = myEmail();
+  var pw = pwds(), out = ['-- 忠鍵內部學習平台：建立／重設所有員工登入帳號（Supabase SQL Editor 執行，可重複執行）', 'set search_path = \"$user\", public, extensions;', ''], me = myEmail();
   cache.edu_members.forEach(function(m){
     var em = String(m.email || '').toLowerCase();
     if (!em || em === 'demo@local' || em === me) return;
-    var pass = pw[em] || 'ZJ000000';
+    var pass = q(pw[em] || 'ZJ000000'), qem = q(em), qnm = q(m.name || em);
     out.push(
-      "with u as (insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)",
-      "  values ('00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated', '" + q(em) + "', crypt('" + q(pass) + "', gen_salt('bf')), now(),",
-      "  '{\"provider\":\"email\",\"providers\":[\"email\"]}', '{\"name\":\"" + q(m.name || em) + "\",\"email\":\"" + q(em) + "\"}', now(), now())",
-      "  on conflict (email) do update set encrypted_password = excluded.encrypted_password, email_confirmed_at = now(), updated_at = now() returning id, email)",
-      "insert into auth.identities (id, user_id, provider_id, provider, identity_data, last_sign_in_at, created_at, updated_at)",
-      "  select gen_random_uuid(), u.id, u.id::text, 'email', jsonb_build_object('sub', u.id::text, 'email', u.email, 'email_verified', true), now(), now(), now() from u on conflict do nothing;",
+      '-- ' + (m.name || em) + '｜' + em + '｜密碼 ' + pass,
+      'do $$',
+      'declare uid uuid;',
+      'begin',
+      "  select id into uid from auth.users where lower(email) = lower('" + qem + "');",
+      '  if uid is null then',
+      '    uid := gen_random_uuid();',
+      '    insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)',
+      "    values ('00000000-0000-0000-0000-000000000000', uid, 'authenticated', 'authenticated', '" + qem + "', crypt('" + pass + "', gen_salt('bf')), now(),",
+      "      '{\"provider\":\"email\",\"providers\":[\"email\"]}', '{\"name\":\"" + qnm + "\",\"email\":\"" + qem + "\"}', now(), now());",
+      '    insert into auth.identities (id, user_id, provider_id, provider, identity_data, last_sign_in_at, created_at, updated_at)',
+      "    values (gen_random_uuid(), uid, uid::text, 'email', jsonb_build_object('sub', uid::text, 'email', '" + qem + "', 'email_verified', true), now(), now(), now());",
+      '  else',
+      "    update auth.users set encrypted_password = crypt('" + pass + "', gen_salt('bf')), email_confirmed_at = now(), updated_at = now() where id = uid;",
+      '  end if;',
+      'end $$;',
       '');
   });
   return out.join('\n');
