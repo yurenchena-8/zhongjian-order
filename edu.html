@@ -107,7 +107,7 @@ var SELF_PROXY = /\.vercel\.app$/i.test(location.hostname) ? location.origin + '
 var MIRROR_PROXY = 'https://zhongjian-edu.vercel.app/sb';
 var PHONE_URL = 'https://zhongjian-edu.vercel.app';
 var BASE_KEY = 'edu_api_base';
-var BUILD_V = '2026-11-06-9';
+var BUILD_V = '2026-11-06-10';
 function savedBase(){ try { return localStorage.getItem(BASE_KEY) || ''; } catch(e){ return ''; } }
 CONFIG.SUPABASE_URL = savedBase() || SELF_PROXY || CONFIG.DIRECT_URL;
 function apiBases(){
@@ -503,23 +503,25 @@ function lessonKind(l){
 }
 
 /* ---------------- 文件開啟（沙箱 iframe，教材內不可存取本站資料） ---------------- */
-/* 沙箱 iframe 是「不透明來源」，碰 localStorage / indexedDB 會直接丟 SecurityError；
-   互動教材（例：模具管理系統）第一行就讀 localStorage，整個初始化中斷，按鈕全失靈。
-   所以在教材檔頭塞一份記憶體替代品，让它照常操作（資料不落地，下次開啟為空白）。 */
-var MAT_SHIM = '<' + 'script>(function(){' +
-  'function mk(){var m={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(m,k)?m[k]:null},' +
-  'setItem:function(k,v){m[k]=String(v)},removeItem:function(k){delete m[k]},clear:function(){m={}},' +
-  'key:function(i){var a=Object.keys(m);return i<a.length?a[i]:null},get length(){return Object.keys(m).length}}}' +
-  '["localStorage","sessionStorage"].forEach(function(n){var bad=false;' +
-  'try{window[n]}catch(e){bad=true}' +
-  'if(bad){try{Object.defineProperty(window,n,{value:mk(),configurable:true})}catch(e){}}}';
-var MAT_SHIM_END = '})();<' + '/script>';
+/* 沙箱 iframe 是「不透明來源」，碰 localStorage / sessionStorage 會直接丟 SecurityError；
+   互動教材（例：模具管理系統）在初始化的第一行就讀 localStorage，整個事件綁定中斷，按鈕全失靈。
+   所以在教材檔頭塞一份記憶體替代品，让它照常操作（本機快取不落地，但教材自己的雲端資料照用）。
+   注意：覆蓋 window.localStorage 必須同時給 writable + enumerable，少一個就蓋不起來（實測 2026-11-06）。 */
+function matShimFn(){
+  function mem(){var d={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(d,k)?d[k]:null},
+    setItem:function(k,v){d[k]=String(v)},removeItem:function(k){delete d[k]},clear:function(){d={}},
+    key:function(i){var a=Object.keys(d);return i<a.length?a[i]:null},get length(){return Object.keys(d).length}};}
+  ['localStorage','sessionStorage'].forEach(function(n){var bad=false;
+    try{window[n]}catch(e){bad=true}
+    if(bad){try{Object.defineProperty(window,n,{value:mem(),writable:true,enumerable:true,configurable:true})}catch(e){}}});
+}
 function withShim(t){
+  var shim = '<' + 'script>(' + matShimFn.toString() + ')();<' + '/script>';
   var head = String(t).search(/<head[^>]*>/i), cut = -1;
   if (head >= 0) cut = String(t).indexOf('>', head) + 1;
   if (cut < 0) { var html = String(t).search(/<html[^>]*>/i); if (html >= 0) cut = String(t).indexOf('>', html) + 1; }
-  if (cut < 0) return MAT_SHIM + MAT_SHIM_END + t;
-  return String(t).slice(0, cut) + MAT_SHIM + MAT_SHIM_END + String(t).slice(cut);
+  if (cut < 0) return shim + t;
+  return String(t).slice(0, cut) + shim + String(t).slice(cut);
 }
 function openMaterial(f, title){
   if (!f) { toast('找不到教材檔案'); return; }
@@ -534,7 +536,7 @@ function openMaterial(f, title){
     ov.innerHTML = '<div class="html-ov-bar"><button class="btn btn-ghost btn-sm" data-act="close-html">✕ 關閉</button>' +
       '<span>' + esc(title || String(f.name || '').replace(/\.html?$/i, '')) + '</span>' +
       '<a class="btn btn-ghost btn-sm" href="' + esc(mediaUrl(f.url)) + '" download="' + esc(f.name || 'material') + '">下載</a></div>' +
-      '<iframe class="html-ov-frame" title="' + esc(f.name || '') + '" sandbox="allow-scripts allow-popups allow-forms allow-modals"></iframe>';
+      '<iframe class="html-ov-frame" title="' + esc(f.name || '') + '" sandbox="allow-scripts allow-popups allow-forms allow-modals allow-downloads"></iframe>';
     document.body.appendChild(ov);
     ov.querySelector('iframe').srcdoc = withShim(t);
   }).catch(function(e){ toast('載入失敗：' + e.message); });
