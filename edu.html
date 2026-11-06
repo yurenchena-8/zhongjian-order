@@ -170,7 +170,8 @@ function sb(){
 }
 function cloudOk(){ return !!sb() && navigator.onLine; }
 /* files 表沿用點餐測試時建好的那張（政策開放），edu 表還沒建時教材也能進雲端 */
-function cloudWriteOk(t){ return cloudOk() && (state.cloudReady || t === 'files'); }
+/* files 表沿用既有專案那張；寫入一律要真的登入過，示範模式只能看本機 */
+function cloudWriteOk(t){ return cloudOk() && !!state.me && !!state.me.user && (state.cloudReady || t === 'files'); }
 
 var state = {
   me: null,            // { user, email, name, role }
@@ -253,6 +254,13 @@ async function loadCloud(){
   }
   persist(); applyTheme(); render();
   return true;
+}
+/* 登入頁的示範模式只在 edu 表尚未建立時開放，員工不能繞過登入看範例 */
+var eduTables = null;
+async function probeEduTables(){
+  if (!cloudOk()) { eduTables = null; return; }
+  try { var r = await sb().from('edu_courses').select('id'); eduTables = !(r && r.error); }
+  catch(e){ eduTables = false; }
 }
 /* 教材檔案沿用既有 files 表，未建 edu 表時也能讀到真檔案 */
 async function loadFilesAnon(){
@@ -392,8 +400,7 @@ function viewLogin(){
       '<div class="kv" style="margin-top:12px">帳號由管理員在 Supabase 建立（Users → Add user → Create new user → 勾 Auto Confirm）。忘記密碼請找管理員重設。</div>' +
     '</div>' +
     (cloudOk() ? '' : '<div class="notice"><b>目前離線</b>需要網路連線才能登入與同步。</div>') +
-    '<div class="notice blue"><b>示範模式</b>資料庫尚未建好時，可先以示範資料預覽全部功能（不會寫入雲端）。</div>' +
-    '<button class="btn btn-block" data-act="demo-enter">以示範模式進入</button>';
+    (eduTables === false ? '<div class="notice blue"><b>示範模式</b>資料庫尚未建好時，可先以示範資料預覽全部功能（不會寫入雲端）。</div><button class="btn btn-block" data-act="demo-enter">以示範模式進入</button>' : '');
 }
 
 /* ---------------- 視圖：首頁（課程列表） ---------------- */
@@ -818,6 +825,14 @@ async function copyText(t, msg){
   }
 }
 
+/* 刪除教材時連雲端檔一起清掉，免得儲存空間被孤兒檔塞爆 */
+function removeStorageObject(url){
+  if (!cloudWriteOk('files')) return;
+  var m = String(url || '').match(/\/storage\/v1\/object\/(?:public\/)?docs\/(.+)$/);
+  if (!m) return;
+  try { sb().storage.from('docs').remove([decodeURIComponent(m[1])]); } catch(e){}
+}
+
 /* ---------------- 檔案上傳（教材） ---------------- */
 async function uploadLessonFile(input){
   var f = input.files && input.files[0];
@@ -825,7 +840,7 @@ async function uploadLessonFile(input){
   var kind = 'file';
   if (/\.html?$/i.test(f.name)) kind = 'file';
   else if (f.type && f.type.indexOf('image/') === 0) kind = 'file';
-  if (cloudOk()) {
+  if (cloudWriteOk('files')) {
     var safeName = f.name.replace(/[^\x20-\x7E]+/g, '_').replace(/[\/\\:*?"<>|#%{}|^~\[\]]+/g, '_').replace(/\s+/g, '_');
     var path = 'edu_' + Date.now() + '_' + (safeName || 'file');
     var up = await sb().storage.from('docs').upload(path, f, { contentType: f.type || 'application/octet-stream' });
@@ -905,9 +920,11 @@ document.addEventListener('click', async function(e){
   if (act === 'cancel-file') { state.editFile = null; render(); return; }
   if (act === 'open-file') { var ff = findFile(id); if (!ff) return; if (isHtmlFile(ff)) openMaterial(ff, ff.name); else window.open(ff.url, '_blank'); return; }
   if (act === 'del-file') {
-    var u = fileUsedBy(id);
+    var frow = findFile(id), u = fileUsedBy(id);
     if (!confirm(u.length ? ('有 ' + u.length + ' 個單元正在使用這本教材，刪除後它們會變成「尚未綁定檔案」。仍要刪除？') : '刪除這本教材？')) return;
-    await dbDel('files', id); return;
+    await dbDel('files', id);
+    removeStorageObject(frow && frow.url);
+    return;
   }
   if (act === 'new-member') { state.editMember = 'new'; render(); return; }
   if (act === 'edit-member') { state.editMember = id; render(); return; }
@@ -1067,8 +1084,10 @@ function setupPWA(){
   applyTheme(); setupPWA(); render();
   if (!cloudOk()) return;
   await restoreSession();
-  if (state.me) { var ok = await loadCloud(); if (!ok) await loadFilesAnon(); }
-  else await loadFilesAnon();
+  if (state.me) { var ok = await loadCloud(); if (!ok) await loadFilesAnon(); return; }
+  await probeEduTables();
+  if (eduTables === false) await loadFilesAnon();
+  render();
 })();
 </script>
 </body>
