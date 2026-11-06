@@ -125,6 +125,8 @@ function toast(msg){ var t = $('#toast'); t.textContent = msg; t.classList.add('
 
 /* ---------------- 資料層 ---------------- */
 var TBL = ['edu_courses', 'edu_lessons', 'edu_progress', 'edu_members', 'files'];
+/* 各表實際存在的時間欄位：塞錯欄位會讓雲端寫入直接 400（edu_progress 沒有 created_at） */
+var TBL_TS = { edu_courses: 'created_at', edu_lessons: 'created_at', edu_members: 'created_at', files: 'created_at', edu_progress: 'completed_at', edu_settings: 'updated_at' };
 var DEFAULT_SETTINGS = {
   id: 'app',
   app_name: '忠鍵工業 · 內部學習', app_sub: '員工教育訓練平台', logo_char: '忠',
@@ -203,6 +205,7 @@ var state = {
   cloudReady: false,   // 雲端表與政策已就緒
   adminTab: 'courses',
   netOk: null, netChecked: false,
+  writeErr: '',        // 最近一次雲端寫入的錯誤（空代表成功）
   editCourse: null, editLesson: null, editMember: null, editFile: null,
   batchMembers: false, acctSql: '',
   courseFilter: '', sqlOpen: false
@@ -324,9 +327,11 @@ async function loadFilesAnon(){
 }
 async function dbAdd(t, row){
   row.id = row.id || uid();
-  row.created_at = row.created_at || new Date().toISOString();
+  var tsCol = TBL_TS[t];
+  if (tsCol) row[tsCol] = row[tsCol] || new Date().toISOString();
   if (cloudWriteOk(t)) {
     var res = await sb().from(t).insert(row).select();
+    state.writeErr = (res && res.error) ? res.error.message : '';
     if (res && res.error) { if (state.cloudReady) { toast('雲端寫入失敗：' + res.error.message); return row; } toast('雲端寫入被擋下，已先存本機'); }
     else if (res && res.data && res.data[0]) row = res.data[0];
   }
@@ -336,6 +341,7 @@ async function dbAdd(t, row){
 async function dbUpd(t, row){
   if (cloudWriteOk(t)) {
     var res = await sb().from(t).update(row).eq('id', row.id);
+    state.writeErr = (res && res.error) ? res.error.message : '';
     if (res && res.error) {
       if (state.cloudReady) { toast('雲端更新失敗：' + res.error.message); return; }
       toast('雲端更新被擋下，僅改本機');
@@ -346,6 +352,7 @@ async function dbUpd(t, row){
 async function dbDel(t, id){
   if (cloudWriteOk(t)) {
     var res = await sb().from(t).delete().eq('id', id);
+    state.writeErr = (res && res.error) ? res.error.message : '';
     if (res && res.error) {
       if (state.cloudReady) { toast('雲端刪除失敗：' + res.error.message); return; }
       toast('雲端刪除被擋下，本機已移除（下次載入會還原）');
@@ -399,9 +406,11 @@ async function markDone(lesson, on){
       course_id: lesson.course_id, lesson_id: lesson.id, status: 'done', completed_at: new Date().toISOString()
     });
     if (p) await dbUpd('edu_progress', row); else await dbAdd('edu_progress', row);
+    if (state.writeErr) { toast('標記未存入雲端：' + state.writeErr); render(); return; }
     toast('已標記完成');
   } else if (p) {
     await dbDel('edu_progress', p.id);
+    if (state.writeErr) { toast('取消未存入雲端：' + state.writeErr); render(); return; }
     toast('已取消完成');
   }
   render();
