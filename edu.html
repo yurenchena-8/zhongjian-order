@@ -111,7 +111,7 @@ var SELF_PROXY = /\.vercel\.app$/i.test(location.hostname) ? location.origin + '
 var MIRROR_PROXY = 'https://zhongjian-edu.vercel.app/sb';
 var PHONE_URL = 'https://zhongjian-edu.vercel.app';
 var BASE_KEY = 'edu_api_base';
-var BUILD_V = '2026-11-06-13';
+var BUILD_V = '2026-11-06-14';
 function savedBase(){ try { return localStorage.getItem(BASE_KEY) || ''; } catch(e){ return ''; } }
 CONFIG.SUPABASE_URL = savedBase() || SELF_PROXY || CONFIG.DIRECT_URL;
 function apiBases(){
@@ -984,9 +984,9 @@ function adminData(){
 
 /* ---------------- AI 助教（管理員限定；金鑰只留在這台瀏覽器） ---------------- */
 var AI_DEF = {
-  base: 'https://api.openai.com/v1',
-  model: 'gpt-4o-mini',
-  sys: '你是「忠鍵工業 · 內部學習平台」的教育訓練助理。用繁體中文、條列、簡短回答；凡是平台教材裡有寫的，優先照教材回答，教材沒cover的再補上一般知識並說明那是補充。'
+  base: 'https://apihub.agnes-ai.com/v1',
+  model: 'agnes-3.0-flash',
+  sys: '你是「忠鍵工業 · 內部學習平台」的教育訓練助理，幫管理員整理員工教育訓練內容。用繁體中文、條列、簡短具體；平台教材裡有寫的優先照教材回答，教材沒涵蓋的才補一般知識並註明是補充。不確定的事直說不確定，不要編造。'
 };
 function aiCfg(){
   var c = LS.get('edu_ai_cfg', {}) || {};
@@ -1024,12 +1024,24 @@ async function aiAsk(msgs){
   var c = aiCfg(), k = aiKey();
   if (!k) throw new Error('還沒填入 API Key（先在上面「AI 服務設定」貼金鑰並按儲存）');
   var url = String(c.base).replace(/\/+$/, '') + '/chat/completions';
-  var r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + k },
-    body: JSON.stringify({ model: c.model, temperature: 0.3, messages: msgs }) });
+  var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  var tm = ctrl ? setTimeout(function(){ ctrl.abort(); }, 120000) : null;
+  var r;
+  try {
+    r = await fetch(url, { method: 'POST', signal: ctrl ? ctrl.signal : undefined,
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + k },
+      body: JSON.stringify({ model: c.model, temperature: 0.3, max_tokens: 900, messages: msgs }) });
+  } catch(e){
+    if (tm) clearTimeout(tm);
+    throw new Error((e && e.name === 'AbortError' ? '等太久（120 秒）沒回應' : '打不到 ' + url) +
+      '——檢查位址有打錯、網路通不通（大陸手機連 OpenAI 會不通，改用 DeepSeek 等國內連得到的服務）');
+  }
+  if (tm) clearTimeout(tm);
   var txt = await r.text(), j = null;
   try { j = JSON.parse(txt); } catch(e){}
   if (!r.ok) {
     var em2 = (j && j.error && (j.error.message || j.error.code)) || String(txt).slice(0, 160);
+    if (r.status === 401) em2 = '金鑰不對或已失效（' + em2 + '）';
     throw new Error('HTTP ' + r.status + '・' + em2);
   }
   var a = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
@@ -1070,12 +1082,12 @@ function adminAi(){
     '<button class="btn btn-primary btn-block" type="submit">儲存 AI 設定</button></form>' +
     '<div class="row2" style="margin-top:8px"><button class="btn btn-block" type="button" data-act="ai-test">測試連線</button>' +
     '<button class="btn btn-block btn-ghost" type="button" data-act="ai-clearkey">清掉這台的金鑰</button></div>' +
-    '<div class="notice blue" style="margin-top:10px">支援填 <b>API Key</b> 的服务都能用，只要它提供 OpenAI 相容的介面：<br>・OpenAI：位置 <code>https://api.openai.com/v1</code>，模型 <code>gpt-4o-mini</code><br>・DeepSeek：位置 <code>https://api.deepseek.com/v1</code>，模型 <code>deepseek-chat</code><br>・其他（通義／Kimi／智譜…）照它官網的「base url + 模型名」填即可。<br>金鑰在哪拿：到該服务的後台 → API Keys → 建立新的金鑰，複製整串貼進上面那格。</div></div>' +
+    '<div class="notice blue" style="margin-top:10px">支援填 <b>API Key</b> 的服務都能用，只要它提供 OpenAI 相容的介面（格式都是 <code>位址 + /chat/completions</code>）：<br>・<b>Agnes AI</b>：位置 <code>https://apihub.agnes-ai.com/v1</code>，模型 <code>agnes-3.0-flash</code>（本欄位的預設值）<br>・DeepSeek：位置 <code>https://api.deepseek.com/v1</code>，模型 <code>deepseek-chat</code><br>・OpenAI：位置 <code>https://api.openai.com/v1</code>，模型 <code>gpt-4o-mini</code><br>・其他（通義／Kimi／智譜…）照它官網的「base url ＋ 模型名稱」填。<br>金鑰在哪拿：到該服務的後台 → API Keys → 建立新的金鑰，把整串複製貼進上面那格。</div></div>' +
     '<div class="panel"><div class="kv" style="margin-bottom:8px"><b>問 AI 助教</b>（只有管理員看得到）</div>' +
     (h.length ? h.map(function(m){
       return '<div class="aibub ' + (m.role === 'user' ? 'me' : 'ai') + '">' + (m.role === 'user' ? '<b>我：</b>' : '<b>AI：</b>') + esc(m.content) + '</div>';
     }).join('') : '<div class="empty"><span class="big">🤖</span>還沒有對話</div>') +
-    (state.aiBusy ? '<div class="notice blue">AI 正在回答…（完成會自動更新畫面）</div>' : '') +
+    (state.aiBusy ? '<div class="notice blue">AI 正在回答…（通常 15～40 秒，慢的時候可到 1 分鐘；完成會自動更新這個畫面，期間別關掉分頁）</div>' : '') +
     '<div class="field" style="margin-top:10px"><textarea id="aiInput" placeholder="例：把「基本操做」的重點整理成 5 條給我"></textarea></div>' +
     '<div class="row2"><button class="btn btn-primary btn-block" type="button" data-act="ai-send">' + (state.aiBusy ? '回答中…' : '送出提問') + '</button>' +
     '<button class="btn btn-block btn-ghost" type="button" data-act="ai-clear">清空對話</button></div></div>';
