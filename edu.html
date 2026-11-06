@@ -107,7 +107,7 @@ var SELF_PROXY = /\.vercel\.app$/i.test(location.hostname) ? location.origin + '
 var MIRROR_PROXY = 'https://zhongjian-edu.vercel.app/sb';
 var PHONE_URL = 'https://zhongjian-edu.vercel.app';
 var BASE_KEY = 'edu_api_base';
-var BUILD_V = '2026-11-06-11';
+var BUILD_V = '2026-11-06-12';
 function savedBase(){ try { return localStorage.getItem(BASE_KEY) || ''; } catch(e){ return ''; } }
 CONFIG.SUPABASE_URL = savedBase() || SELF_PROXY || CONFIG.DIRECT_URL;
 function apiBases(){
@@ -1038,7 +1038,7 @@ var SQL_SCHEMA = [
 'create policy edu_unmark on edu_progress for delete to authenticated using (user_id = (auth.uid())::text);',
 'create policy edu_admin on edu_progress for all to authenticated using (edu_is_admin()) with check (edu_is_admin());',
 '',
-'-- 教材（沿用既有 files 表與 docs 桶）：讀取開放，寫入限定管理員',
+'-- 教材（沿用既有 files 表與存儲桶）：讀取開放；寫入不分桶子一律限管理員（員工不能上傳也不能刪除任何檔案）',
 'do $$ declare r record; begin',
 '  for r in select policyname from pg_policies where schemaname = \'public\' and tablename = \'files\' loop',
 '    execute format(\'drop policy %I on public.files\', r.policyname);',
@@ -1048,18 +1048,15 @@ var SQL_SCHEMA = [
 'create policy edu_files_admin on public.files for all to authenticated using (edu_is_admin()) with check (edu_is_admin());',
 'do $$ declare r record; begin',
 '  for r in select policyname from pg_policies where schemaname = \'storage\' and tablename = \'objects\'',
-'             and cmd in (\'INSERT\',\'UPDATE\',\'DELETE\',\'ALL\') and (\'anon\' = any(roles) or \'public\' = any(roles)) loop',
+'             and cmd in (\'INSERT\',\'UPDATE\',\'DELETE\',\'ALL\') loop',
 '    execute format(\'drop policy %I on storage.objects\', r.policyname);',
 '  end loop;',
 'end $$;',
 'drop policy if exists edu_storage_public_read on storage.objects;',
 'create policy edu_storage_public_read on storage.objects for select using (true);',
-'drop policy if exists edu_docs_admin_insert on storage.objects;',
-'drop policy if exists edu_docs_admin_update on storage.objects;',
-'drop policy if exists edu_docs_admin_delete on storage.objects;',
-"create policy edu_docs_admin_insert on storage.objects for insert to authenticated with check (bucket_id = 'docs' and edu_is_admin());",
-"create policy edu_docs_admin_update on storage.objects for update to authenticated using (bucket_id = 'docs' and edu_is_admin()) with check (bucket_id = 'docs' and edu_is_admin());",
-"create policy edu_docs_admin_delete on storage.objects for delete to authenticated using (bucket_id = 'docs' and edu_is_admin());",
+'create policy edu_storage_admin_insert on storage.objects for insert to authenticated with check (edu_is_admin());',
+'create policy edu_storage_admin_update on storage.objects for update to authenticated using (edu_is_admin()) with check (edu_is_admin());',
+'create policy edu_storage_admin_delete on storage.objects for delete to authenticated using (edu_is_admin());',
 '',
 '-- 把下面這行改成你自己的登入信箱，第一個管理員就是你',
 'insert into edu_members (id, name, email, role) values',
