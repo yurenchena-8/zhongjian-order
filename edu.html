@@ -107,7 +107,7 @@ var SELF_PROXY = /\.vercel\.app$/i.test(location.hostname) ? location.origin + '
 var MIRROR_PROXY = 'https://zhongjian-edu.vercel.app/sb';
 var PHONE_URL = 'https://zhongjian-edu.vercel.app';
 var BASE_KEY = 'edu_api_base';
-var BUILD_V = '2026-11-06-4';
+var BUILD_V = '2026-11-06-5';
 function savedBase(){ try { return localStorage.getItem(BASE_KEY) || ''; } catch(e){ return ''; } }
 CONFIG.SUPABASE_URL = savedBase() || SELF_PROXY || CONFIG.DIRECT_URL;
 function apiBases(){
@@ -959,19 +959,41 @@ var SQL_SCHEMA = [
 'create policy edu_admin on edu_lessons for all to authenticated using (edu_is_admin()) with check (edu_is_admin());',
 'create policy edu_read on edu_settings for select to authenticated using (true);',
 'create policy edu_admin on edu_settings for all to authenticated using (edu_is_admin()) with check (edu_is_admin());',
-'create policy edu_read on edu_members for select to authenticated using (true);',
+'create policy edu_read on edu_members for select to authenticated using (edu_is_admin() or lower(coalesce(email,\'\')) = lower(coalesce(auth.jwt() ->> \'email\',\'\')));',
 'create policy edu_admin on edu_members for all to authenticated using (edu_is_admin()) with check (edu_is_admin());',
-'-- 學習紀錄：每人只看得到、寫得了自己的；管理員可全域查看與清理',
+'-- 學習紀錄：每人只看得到、寫得了、也刪得掉自己的；管理員可全域查看與清理',
 'create policy edu_read on edu_progress for select to authenticated using (user_id = (auth.uid())::text or edu_is_admin());',
 'create policy edu_write on edu_progress for insert to authenticated with check (user_id = (auth.uid())::text);',
+'create policy edu_unmark on edu_progress for delete to authenticated using (user_id = (auth.uid())::text);',
 'create policy edu_admin on edu_progress for all to authenticated using (edu_is_admin()) with check (edu_is_admin());',
+'',
+'-- 教材（沿用既有 files 表與 docs 桶）：讀取開放，寫入限定管理員',
+'do $$ declare r record; begin',
+'  for r in select policyname from pg_policies where schemaname = \'public\' and tablename = \'files\' loop',
+'    execute format(\'drop policy %I on public.files\', r.policyname);',
+'  end loop;',
+'end $$;',
+'create policy edu_files_read on public.files for select using (true);',
+'create policy edu_files_admin on public.files for all to authenticated using (edu_is_admin()) with check (edu_is_admin());',
+'do $$ declare r record; begin',
+'  for r in select policyname from pg_policies where schemaname = \'storage\' and tablename = \'objects\'',
+'             and cmd in (\'INSERT\',\'UPDATE\',\'DELETE\') and (\'anon\' = any(roles) or \'public\' = any(roles)) loop',
+'    execute format(\'drop policy %I on storage.objects\', r.policyname);',
+'  end loop;',
+'end $$;',
+'drop policy if exists edu_docs_admin_insert on storage.objects;',
+'drop policy if exists edu_docs_admin_update on storage.objects;',
+'drop policy if exists edu_docs_admin_delete on storage.objects;',
+"create policy edu_docs_admin_insert on storage.objects for insert to authenticated with check (bucket_id = 'docs' and edu_is_admin());",
+"create policy edu_docs_admin_update on storage.objects for update to authenticated using (bucket_id = 'docs' and edu_is_admin()) with check (bucket_id = 'docs' and edu_is_admin());",
+"create policy edu_docs_admin_delete on storage.objects for delete to authenticated using (bucket_id = 'docs' and edu_is_admin());",
 '',
 '-- 把下面這行改成你自己的登入信箱，第一個管理員就是你',
 'insert into edu_members (id, name, email, role) values',
 '  (\'m-admin\', \'管理員\', \'edu.admin@zhongjian.probesite.com\', \'admin\')',
 '  on conflict (id) do update set email = excluded.email, role = \'admin\', active = true;',
 '',
-'-- 教材檔案沿用既有 files 表與 docs 桶（若要完全封閉，再把 files 政策改為 to authenticated）',
+'-- 成員名單：員工只查得到自己那一筆（政策見上），全公司名單限管理員',
 'insert into edu_settings (id, app_name, app_sub, logo_char, gold1, gold2, gold_tx, primary1, primary2, welcome)',
 'values (\'app\', \'忠鍵工業 · 內部學習\', \'員工教育訓練平台\', \'忠\', \'#f7d878\', \'#e9b23f\', \'#7a5200\', \'#ff8a3d\', \'#ff5f2e\',',
 '  \'歡迎使用內部學習平台。請依課程順序完成研讀並標記，紀錄會自動保存。\')',
