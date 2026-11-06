@@ -719,6 +719,14 @@ function accountSheet(){
 }
 /* 直接寫 auth.users：一次把所有人都開好帳號並設好密碼（等同控制台 Create new user + Auto Confirm）
    用 DO 區塊而不是 ON CONFLICT，因為 auth.users.email 是部分唯一索引，ON CONFLICT (email) 會報 42P10 */
+var ACCT_FIX_COLS = [['confirmation_token', "''"], ['recovery_token', "''"], ['email_change_token_new', "''"], ['email_change_token_current', "''"], ['email_change', "''"], ['phone_change', "''"], ['phone_change_token', "''"], ['reauthentication_token', "''"], ['email_change_confirm_status', '0']];
+function acctFixLines(){
+  return ACCT_FIX_COLS.map(function(col){
+    return '  if exists (select 1 from information_schema.columns where table_schema = \'auth\' and table_name = \'users\' and column_name = \'' + col[0] + '\') then\n' +
+      '    update auth.users set ' + col[0] + ' = ' + col[1] + ' where id = uid and ' + col[0] + ' is null;\n' +
+      '  end if;';
+  }).join('\n');
+}
 function accountSql(){
   var pw = pwds(), out = ['-- 忠鍵內部學習平台：建立／重設所有員工登入帳號（Supabase SQL Editor 執行，可重複執行）', 'set search_path = \"$user\", public, extensions;', ''], me = myEmail();
   cache.edu_members.forEach(function(m){
@@ -728,7 +736,7 @@ function accountSql(){
     out.push(
       '-- ' + (m.name || em) + '｜' + em + '｜密碼 ' + pass,
       'do $$',
-      'declare uid uuid; c text;',
+      'declare uid uuid;',
       'begin',
       "  select id into uid from auth.users where lower(email) = lower('" + qem + "');",
       '  if uid is null then',
@@ -741,15 +749,8 @@ function accountSql(){
       '  else',
       "    update auth.users set encrypted_password = crypt('" + pass + "', gen_salt('bf')), email_confirmed_at = now(), updated_at = now() where id = uid;",
       '  end if;',
-      '  -- GoTrue 讀取帳號時，這些 token 欄需要空字串而不是 NULL（直接 SQL 建的帳號會漏填 → 登入 500）',
-      "  for c in select unnest(array['confirmation_token','recovery_token','email_change_token_new','email_change_token_current','email_change','phone_change','phone_change_token','reauthentication_token']) loop",
-      "    if exists (select 1 from information_schema.columns where table_schema = 'auth' and table_name = 'users' and column_name = c) then",
-      "      execute 'update auth.users set ' || quote_ident(c) || ' = '''' where id = uid and ' || quote_ident(c) || ' is null';",
-      '    end if;',
-      '  end loop;',
-      "  if exists (select 1 from information_schema.columns where table_schema = 'auth' and table_name = 'users' and column_name = 'email_change_confirm_status') then",
-      "    execute 'update auth.users set email_change_confirm_status = 0 where id = uid and email_change_confirm_status is null';",
-      '  end if;',
+      '  -- GoTrue 讀帳號時這些欄必須是空字串／0，直接 SQL 建號會是 NULL（造成登入 500）',
+      acctFixLines(),
       'end $$;',
       '');
   });
