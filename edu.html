@@ -83,6 +83,10 @@ a{color:inherit;text-decoration:none}
 .video-wrap{position:relative;padding-top:56%;background:#000;border-radius:14px;overflow:hidden}
 .video-wrap iframe{position:absolute;inset:0;width:100%;height:100%;border:none}
 .mono{font:12px/1.6 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;background:#f7f8fa;border-radius:12px;padding:10px;max-height:230px;overflow:auto}
+.aibub{font-size:13px;line-height:1.65;padding:9px 11px;border-radius:14px;margin:6px 0;white-space:pre-wrap;word-break:break-word}
+.aibub.me{background:#f2f4f7}
+.aibub.ai{background:#fffaf0;border:1px solid #f5dfa8}
+.aibub.er{background:#fdeceb;border:1px solid #f3c6c3;color:#a12b20}
 .offline #app{opacity:.72}
 </style>
 </head>
@@ -107,7 +111,7 @@ var SELF_PROXY = /\.vercel\.app$/i.test(location.hostname) ? location.origin + '
 var MIRROR_PROXY = 'https://zhongjian-edu.vercel.app/sb';
 var PHONE_URL = 'https://zhongjian-edu.vercel.app';
 var BASE_KEY = 'edu_api_base';
-var BUILD_V = '2026-11-06-12';
+var BUILD_V = '2026-11-06-13';
 function savedBase(){ try { return localStorage.getItem(BASE_KEY) || ''; } catch(e){ return ''; } }
 CONFIG.SUPABASE_URL = savedBase() || SELF_PROXY || CONFIG.DIRECT_URL;
 function apiBases(){
@@ -220,7 +224,8 @@ var state = {
   writeErr: '',        // 最近一次雲端寫入的錯誤（空代表成功）
   editCourse: null, editLesson: null, editMember: null, editFile: null,
   batchMembers: false, acctSql: '',
-  courseFilter: '', sqlOpen: false
+  courseFilter: '', sqlOpen: false,
+  aiMsgs: [], aiBusy: false, aiCtx: true
 };
 function isAdmin(){ return !!state.me && state.me.role === 'admin'; }
 function myKey(){ return state.me ? (state.me.user_id || state.me.email) : ''; }
@@ -676,10 +681,10 @@ function viewMe(){
 /* ---------------- 視圖：管理 ---------------- */
 function viewAdmin(){
   var t = state.adminTab;
-  var tabs = [['courses', '課程'], ['lessons', '單元'], ['files', '教材'], ['records', '紀錄'], ['members', '成員'], ['settings', '設置'], ['sql', '建表 SQL'], ['data', '資料備份']];
+  var tabs = [['courses', '課程'], ['lessons', '單元'], ['files', '教材'], ['records', '紀錄'], ['members', '成員'], ['settings', '設置'], ['ai', 'AI 助教'], ['sql', '建表 SQL'], ['data', '資料備份']];
   return '<div class="backbar"><button class="iconbtn" data-act="go" data-hash="#/">‹</button>管理後台</div>' +
     '<div class="tabs2">' + tabs.map(function(x){ return '<button class="' + (t === x[0] ? 'on' : '') + '" data-act="admin-tab" data-id="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
-    ({ courses: adminCourses, lessons: adminLessons, files: adminFiles, records: adminRecords, members: adminMembers, settings: adminSettings, sql: adminSql, data: adminData }[t] || adminCourses)();
+    ({ courses: adminCourses, lessons: adminLessons, files: adminFiles, records: adminRecords, members: adminMembers, settings: adminSettings, ai: adminAi, sql: adminSql, data: adminData }[t] || adminCourses)();
 }
 function adminCourses(){
   if (state.editCourse) return courseForm(state.editCourse);
@@ -975,6 +980,105 @@ function adminData(){
     '<button class="btn btn-block" style="margin-top:8px" data-act="backup-import">匯入備份檔</button>' +
     '<input type="file" id="backupFile" accept="application/json,.json" style="display:none">' +
     '<div class="kv" style="margin-top:12px">目前資料量：課程 ' + cache.edu_courses.length + '・單元 ' + cache.edu_lessons.length + '・成員 ' + cache.edu_members.length + '・紀錄 ' + cache.edu_progress.length + '</div></div>';
+}
+
+/* ---------------- AI 助教（管理員限定；金鑰只留在這台瀏覽器） ---------------- */
+var AI_DEF = {
+  base: 'https://api.openai.com/v1',
+  model: 'gpt-4o-mini',
+  sys: '你是「忠鍵工業 · 內部學習平台」的教育訓練助理。用繁體中文、條列、簡短回答；凡是平台教材裡有寫的，優先照教材回答，教材沒cover的再補上一般知識並說明那是補充。'
+};
+function aiCfg(){
+  var c = LS.get('edu_ai_cfg', {}) || {};
+  return { base: c.base || AI_DEF.base, model: c.model || AI_DEF.model, sys: c.sys || AI_DEF.sys, ctx: c.ctx !== false };
+}
+function aiKey(){ try { return localStorage.getItem('edu_ai_key') || ''; } catch(e){ return ''; } }
+function aiHist(){ var h = LS.get('edu_ai_hist', []); return Array.isArray(h) ? h : []; }
+function aiMask(k){ return k ? (k.slice(0, 4) + '…' + k.slice(-4) + '（共 ' + k.length + ' 碼）') : '尚未填入'; }
+/* 把課程／單元內容压縮成一段文字，讓 AI 照我們自己的教材回答 */
+function aiDigest(){
+  var out = [];
+  cache.edu_courses.slice().sort(function(a, b){ return (a.sort || 0) - (b.sort || 0); }).forEach(function(c){
+    if (c.active === false) return;
+    out.push('【課程】' + c.title + (c.descr ? '：' + c.descr : ''));
+    lessonsOf(c.id).forEach(function(l){
+      var b = String(l.body || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400);
+      out.push('　・單元「' + l.title + '」（' + l.kind + '・' + (l.minutes || 0) + ' 分鐘）' + (b ? '：' + b : ''));
+    });
+  });
+  var s = out.join('\n');
+  return s.length > 6000 ? s.slice(0, 6000) + '…（教材內容過長，已截斷）' : s;
+}
+function aiMessages(text){
+  var c = aiCfg();
+  var sys = c.sys + (c.ctx ? '\n\n以下是平台現行課程與單元，回答時優先引用：\n' + aiDigest() : '');
+  var msgs = [{ role: 'system', content: sys }];
+  aiHist().slice(-10).forEach(function(m){
+    if (m && m.content && (m.role === 'user' || m.role === 'assistant')) msgs.push({ role: m.role, content: String(m.content) });
+  });
+  msgs.push({ role: 'user', content: String(text) });
+  return msgs;
+}
+/* 打 OpenAI 相容的 /chat/completions（DeepSeek、通義、Kimi 都能直接用這個格式） */
+async function aiAsk(msgs){
+  var c = aiCfg(), k = aiKey();
+  if (!k) throw new Error('還沒填入 API Key（先在上面「AI 服務設定」貼金鑰並按儲存）');
+  var url = String(c.base).replace(/\/+$/, '') + '/chat/completions';
+  var r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + k },
+    body: JSON.stringify({ model: c.model, temperature: 0.3, messages: msgs }) });
+  var txt = await r.text(), j = null;
+  try { j = JSON.parse(txt); } catch(e){}
+  if (!r.ok) {
+    var em2 = (j && j.error && (j.error.message || j.error.code)) || String(txt).slice(0, 160);
+    throw new Error('HTTP ' + r.status + '・' + em2);
+  }
+  var a = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+  if (!a) throw new Error('AI 回傳是空的（模型名稱可能填錯了）');
+  return String(a).trim();
+}
+async function aiSend(){
+  if (!isAdmin()) return;
+  var ta = $('#aiInput'), text = ta ? String(ta.value || '').trim() : '';
+  if (state.aiBusy) { toast('AI 正在回答，稍等一下'); return; }
+  if (!text) { toast('先打一個問題'); return; }
+  var msgs = aiMessages(text);
+  var h = aiHist(); h.push({ role: 'user', content: text }); LS.set('edu_ai_hist', h);
+  state.aiBusy = true; render();
+  var ans;
+  try { ans = await aiAsk(msgs); }
+  catch(e){ ans = '⚠️ ' + String((e && e.message) || e); }
+  var h2 = aiHist(); h2.push({ role: 'assistant', content: ans });
+  if (h2.length > 40) h2 = h2.slice(h2.length - 40);
+  LS.set('edu_ai_hist', h2);
+  state.aiBusy = false; render();
+}
+async function aiTest(){
+  if (!isAdmin()) return;
+  toast('測試連線中…');
+  try { toast('✅ 連線成功：' + (await aiAsk([{ role: 'user', content: '只回四个字：連線成功' }])).slice(0, 40)); }
+  catch(e){ toast('❌ 失敗：' + String((e && e.message) || e).slice(0, 120)); }
+}
+function adminAi(){
+  var c = aiCfg(), k = aiKey(), h = aiHist();
+  return '<div class="panel"><form data-form="ai">' +
+    '<div class="kv" style="margin-bottom:10px"><b>AI 服務設定</b><br>金鑰<b>只存在這台瀏覽器的本機記錄</b>：不會進雲端資料庫、不會出現在匯出的備份檔、員工看不到這個分頁也拿不到金鑰。換手機／換電腦要重新貼一次。</div>' +
+    '<div class="field"><label>API 服務位置（OpenAI 相容格式）</label><input name="base" value="' + esc(c.base) + '" placeholder="https://api.openai.com/v1" autocomplete="off" autocapitalize="off" spellcheck="false"></div>' +
+    '<div class="field"><label>模型名稱</label><input name="model" value="' + esc(c.model) + '" placeholder="gpt-4o-mini" autocomplete="off" autocapitalize="off" spellcheck="false"></div>' +
+    '<div class="field"><label>API Key（目前：' + esc(aiMask(k)) + '）</label><input name="key" type="password" placeholder="' + (k ? '不換就留空' : '例：sk-xxxxxxxx') + '" autocomplete="off" autocapitalize="off" spellcheck="false"></div>' +
+    '<div class="field"><label>AI 的角色（系統提示）</label><textarea name="sys">' + esc(c.sys) + '</textarea></div>' +
+    '<label class="kv" style="display:block;margin-bottom:12px"><input type="checkbox" name="ctx"' + (c.ctx ? ' checked' : '') + '> 每次提問自動附上課程與單元內容（AI 會照您的教材回答）</label>' +
+    '<button class="btn btn-primary btn-block" type="submit">儲存 AI 設定</button></form>' +
+    '<div class="row2" style="margin-top:8px"><button class="btn btn-block" type="button" data-act="ai-test">測試連線</button>' +
+    '<button class="btn btn-block btn-ghost" type="button" data-act="ai-clearkey">清掉這台的金鑰</button></div>' +
+    '<div class="notice blue" style="margin-top:10px">支援填 <b>API Key</b> 的服务都能用，只要它提供 OpenAI 相容的介面：<br>・OpenAI：位置 <code>https://api.openai.com/v1</code>，模型 <code>gpt-4o-mini</code><br>・DeepSeek：位置 <code>https://api.deepseek.com/v1</code>，模型 <code>deepseek-chat</code><br>・其他（通義／Kimi／智譜…）照它官網的「base url + 模型名」填即可。<br>金鑰在哪拿：到該服务的後台 → API Keys → 建立新的金鑰，複製整串貼進上面那格。</div></div>' +
+    '<div class="panel"><div class="kv" style="margin-bottom:8px"><b>問 AI 助教</b>（只有管理員看得到）</div>' +
+    (h.length ? h.map(function(m){
+      return '<div class="aibub ' + (m.role === 'user' ? 'me' : 'ai') + '">' + (m.role === 'user' ? '<b>我：</b>' : '<b>AI：</b>') + esc(m.content) + '</div>';
+    }).join('') : '<div class="empty"><span class="big">🤖</span>還沒有對話</div>') +
+    (state.aiBusy ? '<div class="notice blue">AI 正在回答…（完成會自動更新畫面）</div>' : '') +
+    '<div class="field" style="margin-top:10px"><textarea id="aiInput" placeholder="例：把「基本操做」的重點整理成 5 條給我"></textarea></div>' +
+    '<div class="row2"><button class="btn btn-primary btn-block" type="button" data-act="ai-send">' + (state.aiBusy ? '回答中…' : '送出提問') + '</button>' +
+    '<button class="btn btn-block btn-ghost" type="button" data-act="ai-clear">清空對話</button></div></div>';
 }
 
 /* ---------------- 建表 SQL（含 RLS：限已登入員工） ---------------- */
@@ -1280,6 +1384,15 @@ document.addEventListener('click', async function(e){
   if (act === 'backup-export') { exportBackup(); return; }
   if (act === 'backup-import') { var bf = document.getElementById('backupFile'); if (bf) bf.click(); return; }
   if (act === 'export-csv') { exportCsv(); return; }
+  if (act === 'ai-send') { await aiSend(); return; }
+  if (act === 'ai-test') { await aiTest(); return; }
+  if (act === 'ai-clear') { LS.set('edu_ai_hist', []); render(); toast('對話已清空'); return; }
+  if (act === 'ai-clearkey') {
+    if (!isAdmin()) return;
+    if (!confirm('清掉這台裝置存的金鑰？（AI 服務設定其他欄位不動）')) return;
+    try { localStorage.removeItem('edu_ai_key'); } catch(e){}
+    render(); toast('已清掉這台裝置的金鑰'); return;
+  }
 });
 document.addEventListener('change', function(e){
   var el = e.target;
@@ -1391,6 +1504,19 @@ document.addEventListener('submit', async function(e){
     }
     cache.settings = Object.assign({}, cache.settings, srow);
     persist(); applyTheme(); setupPWA(); render(); toast('設置已保存');
+  } else if (kind === 'ai') {
+    if (!isAdmin()) return;
+    LS.set('edu_ai_cfg', {
+      base: String(fd.get('base') || '').trim() || AI_DEF.base,
+      model: String(fd.get('model') || '').trim() || AI_DEF.model,
+      sys: String(fd.get('sys') || '').trim() || AI_DEF.sys,
+      ctx: fd.get('ctx') !== null
+    });
+    var akey = String(fd.get('key') || '').trim();
+    var stored = true;
+    if (akey) { try { localStorage.setItem('edu_ai_key', akey); } catch(e){ stored = false; } }
+    render();
+    toast(!akey ? 'AI 設定已保存（金鑰維持原本那把）' : (stored ? '金鑰與設定已存在這台瀏覽器' : '設定已保存，但金鑰存不進去（瀏覽器可能是無痕模式）'));
   }
 });
 document.addEventListener('keydown', function(e){
