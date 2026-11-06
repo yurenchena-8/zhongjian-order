@@ -107,7 +107,7 @@ var SELF_PROXY = /\.vercel\.app$/i.test(location.hostname) ? location.origin + '
 var MIRROR_PROXY = 'https://zhongjian-edu.vercel.app/sb';
 var PHONE_URL = 'https://zhongjian-edu.vercel.app';
 var BASE_KEY = 'edu_api_base';
-var BUILD_V = '2026-11-06-6';
+var BUILD_V = '2026-11-06-7';
 function savedBase(){ try { return localStorage.getItem(BASE_KEY) || ''; } catch(e){ return ''; } }
 CONFIG.SUPABASE_URL = savedBase() || SELF_PROXY || CONFIG.DIRECT_URL;
 function apiBases(){
@@ -1004,10 +1004,12 @@ var SQL_SCHEMA = [
 'create policy edu_files_admin on public.files for all to authenticated using (edu_is_admin()) with check (edu_is_admin());',
 'do $$ declare r record; begin',
 '  for r in select policyname from pg_policies where schemaname = \'storage\' and tablename = \'objects\'',
-'             and cmd in (\'INSERT\',\'UPDATE\',\'DELETE\') and (\'anon\' = any(roles) or \'public\' = any(roles)) loop',
+'             and cmd in (\'INSERT\',\'UPDATE\',\'DELETE\',\'ALL\') and (\'anon\' = any(roles) or \'public\' = any(roles)) loop',
 '    execute format(\'drop policy %I on storage.objects\', r.policyname);',
 '  end loop;',
 'end $$;',
+'drop policy if exists edu_storage_public_read on storage.objects;',
+'create policy edu_storage_public_read on storage.objects for select using (true);',
 'drop policy if exists edu_docs_admin_insert on storage.objects;',
 'drop policy if exists edu_docs_admin_update on storage.objects;',
 'drop policy if exists edu_docs_admin_delete on storage.objects;',
