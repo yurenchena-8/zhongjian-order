@@ -107,7 +107,7 @@ var SELF_PROXY = /\.vercel\.app$/i.test(location.hostname) ? location.origin + '
 var MIRROR_PROXY = 'https://zhongjian-edu.vercel.app/sb';
 var PHONE_URL = 'https://zhongjian-edu.vercel.app';
 var BASE_KEY = 'edu_api_base';
-var BUILD_V = '2026-11-06-3';
+var BUILD_V = '2026-11-06-4';
 function savedBase(){ try { return localStorage.getItem(BASE_KEY) || ''; } catch(e){ return ''; } }
 CONFIG.SUPABASE_URL = savedBase() || SELF_PROXY || CONFIG.DIRECT_URL;
 function apiBases(){
@@ -252,7 +252,7 @@ function loginErrText(err){
   var m = String((err && (err.message || err.error_description)) || '');
   if (/failed to fetch|networkerror|err_network|err_connection|err_internet|load failed|timed out|etimedout|fetch error|request failure|network request failed/i.test(m)) return '連不到雲端伺服器（supabase.co）。手機開頁面用得著、但登入要連雲端：請改連公司 WiFi 再試一次。';
   if (!m) return '連不到雲端伺服器（supabase.co）。請改連公司 WiFi 再試一次。';
-  if (/invalid login credentials/i.test(m)) return '帳號或密碼錯誤。帳號可以直接打小卡編號（例：001），密碼分大小寫、前後不要多空格；連按幾次都一樣的話請找管理員照小卡重設。';
+  if (/invalid login credentials/i.test(m)) return '帳號或密碼錯誤。帳號可以直接打小卡編號（例：001），密碼是小卡上的 6 碼數字；連按幾次都一樣請找管理員重設。';
   if (/email not confirmed/i.test(m)) return '這個帳號還沒開通完成，請管理員重跑一次開帳號 SQL。';
   if (/rate limit|too many requests/i.test(m)) return '短時間嘗試太多次，請等 1 分鐘再登入。';
   if (/unable to validate|token/i.test(m) && /signature|expir/i.test(m)) return '登入憑證驗證失敗：請把這台裝置的日期與時間改為「自動／網路同步」。';
@@ -489,9 +489,9 @@ function viewLogin(){
   return '<div class="bar">' + logoBox() + '<div class="bartxt"><b>' + esc(s.app_name) + '</b><span>' + esc(s.app_sub) + '</span></div></div>' +
     '<div class="panel">' +
       '<div class="field"><label>員工帳號</label><input id="lgEmail" type="text" inputmode="email" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="小卡編號（例：001）或完整信箱"></div>' +
-      '<div class="field"><label>密碼</label><input id="lgPass" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="小卡上的 8 碼密碼"></div>' +
+      '<div class="field"><label>密碼</label><input id="lgPass" type="password" inputmode="numeric" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="小卡上的 6 碼數字"></div>' +
       '<button class="btn btn-primary btn-block" data-act="do-login">登入</button>' +
-      '<div class="kv" style="margin-top:12px">帳號密碼都在小卡上：「帳號」欄打編號 001 就好（會自動補成完整信箱），密碼分大小寫、照著打。忘記或遺失請找管理員重設。</div>' +
+      '<div class="kv" style="margin-top:12px">帳號密碼都在小卡上：「帳號」欄打編號 001 就好（會自動補成完整信箱），密碼是小卡上的 6 碼數字，直接照著打。忘記或遺失請找管理員重設。</div>' +
     '</div>' +
     (cloudOk() ? '' : '<div class="notice"><b>目前離線</b>需要網路連線才能登入與同步。</div>') +
     (cloudOk() && state.netOk === false ? '<div class="notice"><b>連不到雲端資料庫</b>頁面打得開，但這個網路到不了您的資料庫（已試過 ' + apiBases().length + ' 條通道都不通）。請改連公司 WiFi、或關掉行動熱點再試；也可以直接開手機確定可用的那一條：<a href="' + PHONE_URL + '" target="_blank" rel="noopener">' + PHONE_URL + ' ↗</a>　<a href="' + CONFIG.SUPABASE_URL + '/auth/v1/health?apikey=' + encodeURIComponent(CONFIG.SUPABASE_ANON_KEY) + '" target="_blank" rel="noopener">按這裡自己測 ↗</a>　看到 <code>version</code> 那串代表線路是通的（問題在帳號密碼）；<b>完全打不開或一直轉圈</b>才是被網路擋住。</div>' : '') +
@@ -769,8 +769,9 @@ var ACCT_DOMAIN = 'zhongjian.probesite.com';
 function pwds(){ var o = LS.get('edu_pwds', null); return o && typeof o === 'object' ? o : {}; }
 function savePwds(o){ LS.set('edu_pwds', o); }
 function genPw(){
-  var abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', s = '';
-  for (var i = 0; i < 8; i++) s += abc.charAt(Math.floor(Math.random() * abc.length));
+  /* 6 碼純數字：手機九宮格最好打，也不會被自動大寫／全形干擾 */
+  var s = '';
+  for (var i = 0; i < 6; i++) s += String(Math.floor(Math.random() * 10));
   return s;
 }
 function q(s){ return String(s == null ? '' : s).replace(/'/g, "''"); }
