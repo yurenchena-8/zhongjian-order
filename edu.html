@@ -178,6 +178,7 @@ var state = {
   cloudReady: false,   // 雲端表與政策已就緒
   adminTab: 'courses',
   editCourse: null, editLesson: null, editMember: null, editFile: null,
+  batchMembers: false, acctSql: '',
   courseFilter: '', sqlOpen: false
 };
 function isAdmin(){ return !!state.me && state.me.role === 'admin'; }
@@ -633,11 +634,24 @@ function adminRecords(){
 function adminMembers(){
   if (state.editMember) return memberForm(state.editMember);
   var list = cache.edu_members.slice().sort(function(a, b){ return String(a.name || '').localeCompare(String(b.name || '')); });
-  return '<div class="notice blue"><b>開帳號的順序</b>1️⃣ 這裡新增成員（姓名＋信箱＋角色）→ 2️⃣ 到 Supabase 控制台 Users → Add user 右側小箭頭 → <b>Create new user</b>，填同一組信箱與密碼、勾 <b>Auto Confirm</b> → 3️⃣ 員工就能登入。<br>角色選「管理員」才有後台與新增課程權限。</div>' +
-    '<button class="btn btn-primary btn-block" style="margin-bottom:12px" data-act="new-member">＋ 新增成員</button>' +
-    '<button class="btn btn-block" style="margin-bottom:12px" data-act="copy-accounts">複製待開帳號清單</button>' +
+  var pw = pwds(), noPw = list.filter(function(m){ return m.email && !pw[String(m.email).toLowerCase()]; }).length;
+  return '<div class="notice blue"><b>批次開帳號（三步）</b>1️⃣ 貼名單或逐筆新增成員 → 2️⃣ 按「產生開帳號 SQL」→ 3️⃣ 到 Supabase SQL Editor 貼上執行一次，員工就全部能登入。<br>' +
+    '角色選「管理員」才有後台與新增課程權限。密碼只存在這台裝置，產生後請立刻「複製帳號表」存成文件或列印。<br>' +
+    '（也可以不用 SQL：Supabase 控制台 Users → Add user 右側小箭頭 → Create new user → 勾 Auto Confirm，一個一個開。）</div>' +
+    '<button class="btn btn-primary btn-block" style="margin-bottom:8px" data-act="new-member">＋ 新增成員</button>' +
+    '<button class="btn btn-block" style="margin-bottom:8px" data-act="batch-members">＋ 批次新增名單（一行一人）</button>' +
+    (state.batchMembers ? '<div class="panel"><form data-form="batch">' +
+      '<div class="field"><label>名單（例：張三 ／ 或已有信箱：李四,lee@zhongjian.com）</label><textarea id="batchNames" placeholder="張三&#10;李四&#10;王小明,wang@zhongjian.com"></textarea></div>' +
+      '<div class="field"><label>預設角色</label><select id="batchRole"><option value="staff">員工</option><option value="admin">管理員</option></select></div>' +
+      '<button class="btn btn-primary btn-block" type="submit">加入名單</button></form></div>' : '') +
+    '<button class="btn btn-block" style="margin-bottom:8px" data-act="make-accounts">② 產生開帳號 SQL（全部）</button>' +
+    '<button class="btn btn-block" style="margin-bottom:12px" data-act="copy-accounts">③ 複製帳號表（姓名｜帳號｜密碼）</button>' +
+    (noPw ? '<div class="notice warn"><b>注意</b>有 ' + noPw + ' 位成員還沒有密碼，按「② 產生開帳號 SQL」時會自動補上。</div>' : '') +
+    (state.acctSql ? '<div class="panel"><div class="kv" style="margin-bottom:8px"><b>開帳號 SQL</b>（複製後到 Supabase SQL Editor 貼上 → Run）</div>' +
+      '<button class="btn btn-primary btn-block" data-act="copy-acct-sql">複製這段 SQL</button>' +
+      '<div class="mono" style="margin-top:10px">' + esc(state.acctSql) + '</div></div>' : '') +
     (list.length ? '<div class="panel">' + list.map(function(m){
-      return '<div class="row"><span class="ficon">' + (m.role === 'admin' ? '👑' : '👤') + '</span><div class="rt"><b>' + esc(m.name || '') + '</b><span>' + esc(m.email || '') + '・' + (m.role === 'admin' ? '管理員' : '員工') + (m.active === false ? '・已停用' : '') + '</span></div>' +
+      return '<div class="row"><span class="ficon">' + (m.role === 'admin' ? '👑' : '👤') + '</span><div class="rt"><b>' + esc(m.name || '') + '</b><span>' + esc(m.email || '尚未指派帳號') + '・' + (m.role === 'admin' ? '管理員' : '員工') + (m.active === false ? '・已停用' : '') + (pw[String(m.email || '').toLowerCase()] ? '・已產密碼' : '') + '</span></div>' +
         '<button class="btn btn-sm" data-act="edit-member" data-id="' + m.id + '">編輯</button>' +
         '<button class="btn btn-sm btn-ghost" data-act="del-member" data-id="' + m.id + '">刪除</button></div>';
     }).join('') + '</div>' : '<div class="empty"><span class="big">👥</span>尚未新增成員</div>');
@@ -652,6 +666,64 @@ function memberForm(id){
     '<input type="hidden" name="id" value="' + esc(m.id || '') + '">' +
     '<button class="btn btn-primary btn-block" type="submit">儲存成員</button>' +
     '<button class="btn btn-ghost btn-block" style="margin-top:8px" type="button" data-act="cancel-member">取消</button></form></div>';
+}
+/* ---------------- 批次開帳號 ---------------- */
+var ACCT_DOMAIN = 'zhongjian.probesite.com';
+function pwds(){ var o = LS.get('edu_pwds', null); return o && typeof o === 'object' ? o : {}; }
+function savePwds(o){ LS.set('edu_pwds', o); }
+function genPw(){
+  var abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', s = '';
+  for (var i = 0; i < 8; i++) s += abc.charAt(Math.floor(Math.random() * abc.length));
+  return s;
+}
+function q(s){ return String(s == null ? '' : s).replace(/'/g, "''"); }
+/* 沒填信箱的成員補一個 zj01@domain 式的登入帳號，員工只要記編號＋密碼 */
+function assignEmails(){
+  var taken = {};
+  cache.edu_members.forEach(function(m){ if (m.email) taken[String(m.email).toLowerCase()] = 1; });
+  var changed = [];
+  cache.edu_members.forEach(function(m){
+    if (m.email) return;
+    var n = 1, em;
+    do { em = 'zj' + ('0' + n).slice(-2) + '@' + ACCT_DOMAIN; n++; } while (taken[em]);
+    taken[em] = 1; m.email = em; changed.push(m);
+  });
+  return changed;
+}
+function myEmail(){ return String((state.me && state.me.email) || '').toLowerCase(); }
+function ensurePasswords(){
+  var pw = pwds(), changed = false, me = myEmail();
+  cache.edu_members.forEach(function(m){
+    var k = String(m.email || '').toLowerCase();
+    if (!k || k === me || pw[k]) return;
+    pw[k] = genPw(); changed = true;
+  });
+  if (changed) savePwds(pw);
+}
+function accountSheet(){
+  var pw = pwds(), me = myEmail();
+  return cache.edu_members.map(function(m){
+    var k = String(m.email || '').toLowerCase();
+    return (m.name || '') + ' | ' + (m.email || '（尚未指派帳號）') + ' | ' + (k === me ? '（您自己的帳號，用現有密碼）' : (pw[k] || '（尚未產生密碼）')) + ' | ' + (m.role === 'admin' ? '管理員' : '員工');
+  }).join('\n');
+}
+/* 直接寫 auth.users：一次把所有人都開好帳號並設好密碼（等同控制台 Create new user + Auto Confirm） */
+function accountSql(){
+  var pw = pwds(), out = ['-- 忠鍵內部學習平台：一次建立所有員工登入帳號（在 Supabase SQL Editor 執行一次）', 'set search_path = \"$user\", public, extensions;', ''], me = myEmail();
+  cache.edu_members.forEach(function(m){
+    var em = String(m.email || '').toLowerCase();
+    if (!em || em === 'demo@local' || em === me) return;
+    var pass = pw[em] || 'ZJ000000';
+    out.push(
+      "with u as (insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)",
+      "  values ('00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated', '" + q(em) + "', crypt('" + q(pass) + "', gen_salt('bf')), now(),",
+      "  '{\"provider\":\"email\",\"providers\":[\"email\"]}', '{\"name\":\"" + q(m.name || em) + "\",\"email\":\"" + q(em) + "\"}', now(), now())",
+      "  on conflict (email) do nothing returning id, email)",
+      "insert into auth.identities (id, user_id, provider_id, provider, identity_data, last_sign_in_at, created_at, updated_at)",
+      "  select gen_random_uuid(), u.id, u.id::text, 'email', jsonb_build_object('sub', u.id::text, 'email', u.email, 'email_verified', true), now(), now(), now() from u;",
+      '');
+  });
+  return out.join('\n');
 }
 function adminSettings(){
   var s = settings();
@@ -901,7 +973,7 @@ document.addEventListener('click', async function(e){
   if (act === 'close-html') { var ov = document.getElementById('htmlOverlay'); if (ov) ov.remove(); return; }
   if (act === 'mark') { var l1 = findLesson(id); if (l1) await markDone(l1, true); return; }
   if (act === 'unmark') { var l2 = findLesson(id); if (l2) await markDone(l2, false); return; }
-  if (act === 'admin-tab') { state.adminTab = id; state.editCourse = null; state.editLesson = null; state.editMember = null; state.editFile = null; render(); return; }
+  if (act === 'admin-tab') { state.adminTab = id; state.editCourse = null; state.editLesson = null; state.editMember = null; state.editFile = null; state.acctSql = ''; render(); return; }
   if (act === 'new-course') { state.editCourse = 'new'; render(); return; }
   if (act === 'edit-course') { state.editCourse = id; render(); return; }
   if (act === 'cancel-course') { state.editCourse = null; render(); return; }
@@ -932,11 +1004,17 @@ document.addEventListener('click', async function(e){
   if (act === 'del-member') { if (confirm('刪除成員？')) await dbDel('edu_members', id); return; }
   if (act === 'del-record') { if (confirm('刪除這筆學習紀錄？')) await dbDel('edu_progress', id); return; }
   if (act === 'copy-sql') { copyText(sqlText().sql, 'SQL 已複製，請到剛開啟的分頁貼上並按 Run'); return; }
-  if (act === 'copy-accounts') {
-    var txt = cache.edu_members.map(function(m){ return (m.name || '') + ' | ' + (m.email || '') + ' | ' + (m.role === 'admin' ? '管理員' : '員工'); }).join('\n');
-    copyText(txt || '（成員清單目前是空的）', '成員清單已複製');
-    return;
+  if (act === 'batch-members') { state.batchMembers = !state.batchMembers; render(); return; }
+  if (act === 'make-accounts') {
+    if (!cache.edu_members.length) { toast('名單是空的，請先新增成員'); return; }
+    var ch = assignEmails();
+    for (var ci = 0; ci < ch.length; ci++) await dbUpd('edu_members', ch[ci]);
+    ensurePasswords();
+    state.acctSql = accountSql();
+    render(); toast('帳號已排好，請複製 SQL 與帳號表'); return;
   }
+  if (act === 'copy-acct-sql') { copyText(state.acctSql || accountSql(), 'SQL 已複製，到 Supabase SQL Editor 貼上並按 Run'); return; }
+  if (act === 'copy-accounts') { copyText(accountSheet() || '（成員清單目前是空的）', '帳號表已複製，可貼到 Word／Excel 列印'); return; }
   if (act === 'reload-cloud') {
     if (!state.me) { toast('請先登入'); return; }
     var ok = await loadCloud();
@@ -1010,6 +1088,23 @@ document.addEventListener('submit', async function(e){
     merged.name = fname;
     await dbUpd('files', merged);
     state.editFile = null; toast('教材已更新'); render();
+  } else if (kind === 'batch') {
+    var raw = ($('#batchNames') || {}).value || '';
+    var brole = ($('#batchRole') || {}).value || 'staff';
+    var lines = raw.split(/\r?\n/).map(function(s){ return s.trim(); }).filter(Boolean);
+    if (!lines.length) { toast('請貼上名單，一行一位'); return; }
+    var added = 0, dup = 0;
+    for (var bi = 0; bi < lines.length; bi++) {
+      var seg = lines[bi].split(/[,，;；\t ]+/).filter(Boolean);
+      var bnm = seg[0] || '', bem = String(seg[1] || '').toLowerCase();
+      if (bem && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(bem)) { toast('跳過格式不對的信箱：' + bem); continue; }
+      if (bem && findMember(bem)) { dup++; continue; }
+      await dbAdd('edu_members', { id: uid(), name: bnm, email: bem, role: brole, active: true });
+      added++;
+    }
+    state.batchMembers = false;
+    toast('已加入 ' + added + ' 位' + (dup ? '，重複 ' + dup + ' 位已略過' : ''));
+    render();
   } else if (kind === 'member') {
     var mrow = {
       id: fd.get('id') || uid(),
