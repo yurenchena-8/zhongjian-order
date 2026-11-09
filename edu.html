@@ -115,7 +115,7 @@ var SELF_PROXY = /\.vercel\.app$/i.test(location.hostname) ? location.origin + '
 var MIRROR_PROXY = 'https://zhongjian-edu.vercel.app/sb';
 var PHONE_URL = 'https://zhongjian-edu.vercel.app';
 var BASE_KEY = 'edu_api_base';
-var BUILD_V = '2026-11-06-16';
+var BUILD_V = '2026-11-06-17';
 function savedBase(){ try { return localStorage.getItem(BASE_KEY) || ''; } catch(e){ return ''; } }
 CONFIG.SUPABASE_URL = savedBase() || SELF_PROXY || CONFIG.DIRECT_URL;
 function apiBases(){
@@ -611,7 +611,10 @@ function openFilePreview(f, title, vk){
     link.href = prevBlob; link.removeAttribute('target');
   }).catch(function(e){
     if (!document.getElementById('htmlOverlay')) return;
-    box.innerHTML = '<div class="ov-tip">載入失敗：' + esc(e.message) + '<br>可能是網路不通或檔案太大。可按右上角「下載」直接存檔。</div>';
+    var gone = /HTTP 40[0-9]|HTTP 500|not_found|NoSuchKey/i.test(e.message);
+    box.innerHTML = '<div class="ov-tip">' + (gone
+      ? '這本教材的檔案在雲端已經找不到了（可能被刪掉或當初上傳失敗）。<br>請通知管理員重新上傳一次。'
+      : '載入失敗：' + esc(e.message) + '<br>可能是網路不通或檔案太大。可按右上角「下載」直接存檔。') + '</div>';
   });
 }
 
