@@ -73,6 +73,10 @@ a{color:inherit;text-decoration:none}
 .html-ov-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#f5f6f8;border-bottom:1px solid #e6e9ed;font-size:13px;font-weight:600}
 .html-ov-bar span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .html-ov-frame{flex:1;border:none;width:100%}
+.ov-body{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;background:#12161b}
+.ov-body img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+.ov-body iframe{flex:1;width:100%;height:100%;border:none;background:#fff}
+.ov-tip{color:#cdd5de;font-size:13px;padding:18px 16px;text-align:center;line-height:1.8}
 .tabs2{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:4px;-webkit-overflow-scrolling:touch}
 .tabs2 button{border:none;background:#eef0f3;border-radius:999px;padding:7px 13px;font-size:13px;white-space:nowrap;cursor:pointer;color:#5c6673}
 .tabs2 button.on{background:#1c2025;color:#fff;font-weight:700}
@@ -111,7 +115,7 @@ var SELF_PROXY = /\.vercel\.app$/i.test(location.hostname) ? location.origin + '
 var MIRROR_PROXY = 'https://zhongjian-edu.vercel.app/sb';
 var PHONE_URL = 'https://zhongjian-edu.vercel.app';
 var BASE_KEY = 'edu_api_base';
-var BUILD_V = '2026-11-06-15';
+var BUILD_V = '2026-11-06-16';
 function savedBase(){ try { return localStorage.getItem(BASE_KEY) || ''; } catch(e){ return ''; } }
 CONFIG.SUPABASE_URL = savedBase() || SELF_PROXY || CONFIG.DIRECT_URL;
 function apiBases(){
@@ -496,6 +500,15 @@ function findLesson(id){ for (var i = 0; i < cache.edu_lessons.length; i++) if (
 function findCourse(id){ for (var i = 0; i < cache.edu_courses.length; i++) if (cache.edu_courses[i].id === id) return cache.edu_courses[i]; return null; }
 function findFile(id){ for (var i = 0; i < cache.files.length; i++) if (cache.files[i].id === id) return cache.files[i]; return null; }
 function isHtmlFile(f){ return /\.html?$/i.test(f && f.name || ''); }
+function fileExt(f){ var m = String((f && f.name) || '').match(/\.([A-Za-z0-9]+)$/); return m ? m[1].toLowerCase() : ''; }
+/* 預覽方式只按副檔名判斷：圖片與 PDF 在頁內顯示，Excel/Word 這類浏览器本來就不能渲染，維持下載 */
+function fileViewKind(f){
+  if (isHtmlFile(f)) return 'html';
+  var e = fileExt(f);
+  if (/(jpg|jpeg|png|gif|webp|bmp|avif|heic|heif|svg)/.test(e)) return 'image';
+  if (e === 'pdf') return 'pdf';
+  return 'other';
+}
 function ytEmbed(url){
   var m = String(url || '').match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([A-Za-z0-9_-]{6,})/);
   return m ? 'https://www.youtube.com/embed/' + m[1] : '';
@@ -538,6 +551,12 @@ function withReadOnly(t){
 }
 function openMaterial(f, title){
   if (!f) { toast('找不到教材檔案'); return; }
+  var vk = fileViewKind(f);
+  if (vk === 'html') { openHtmlMaterial(f, title); return; }
+  if (vk === 'image' || vk === 'pdf') { openFilePreview(f, title, vk); return; }
+  window.open(mediaUrl(f.url), '_blank');
+}
+function openHtmlMaterial(f, title){
   fetch(mediaUrl(f.url)).then(function(r){
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.text();
@@ -555,6 +574,45 @@ function openMaterial(f, title){
     document.body.appendChild(ov);
     ov.querySelector('iframe').srcdoc = ro ? withReadOnly(withShim(t)) : withShim(t);
   }).catch(function(e){ toast('載入失敗：' + e.message); });
+}
+
+/* 圖片／PDF 頁內預覽：先抓成 blob 再顯示。
+   用 blob 而不直接把網址塞 iframe，是因為「下載」連結在跨網域時 download 屬性會被瀏覽器忽略
+   （點了變成又開一次預覽），blob 是同源，存檔才真的生效；抓取失敗時退回直接網址。 */
+var prevBlob = '';
+function clearPrevBlob(){ if (prevBlob) { try { URL.revokeObjectURL(prevBlob); } catch(e){} prevBlob = ''; } }
+function openFilePreview(f, title, vk){
+  clearPrevBlob();
+  var url = mediaUrl(f.url);
+  var old = document.getElementById('htmlOverlay');
+  if (old) old.remove();
+  var ov = document.createElement('div');
+  ov.id = 'htmlOverlay';
+  ov.innerHTML = '<div class="html-ov-bar"><button class="btn btn-ghost btn-sm" data-act="close-html">✕ 關閉</button>' +
+    '<span>' + esc(title || f.name || '') + '</span>' +
+    '<a class="btn btn-ghost btn-sm" href="' + esc(url) + '" target="_blank" rel="noopener" download="' + esc(f.name || 'file') + '">下載</a></div>' +
+    '<div class="ov-body"><div class="ov-tip">' + (vk === 'pdf' ? '正在開啟 PDF…' : '正在載入圖片…') + '<br>' + (fmtSize(f.size) || '') + '・載入期間請別關掉頁面</div></div>';
+  document.body.appendChild(ov);
+  var box = ov.querySelector('.ov-body'), link = ov.querySelector('.html-ov-bar a');
+  fetch(url).then(function(r){
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.blob();
+  }).then(function(b){
+    if (!document.getElementById('htmlOverlay')) return;
+    prevBlob = URL.createObjectURL(b);
+    if (vk === 'image') {
+      box.innerHTML = '<img alt="" src="' + prevBlob + '">';
+      box.querySelector('img').onerror = function(){
+        box.innerHTML = '<div class="ov-tip">這張圖片的格式瀏覽器無法顯示（手機拍的 HEIC 最常見）。<br>可按右上角「下載」存到手機再看。</div>';
+      };
+    } else {
+      box.innerHTML = '<iframe title="' + esc(f.name || '') + '" src="' + prevBlob + '"></iframe>';
+    }
+    link.href = prevBlob; link.removeAttribute('target');
+  }).catch(function(e){
+    if (!document.getElementById('htmlOverlay')) return;
+    box.innerHTML = '<div class="ov-tip">載入失敗：' + esc(e.message) + '<br>可能是網路不通或檔案太大。可按右上角「下載」直接存檔。</div>';
+  });
 }
 
 /* ---------------- 視圖：登入 ---------------- */
@@ -640,8 +698,12 @@ function viewLesson(id){
       body = '<div class="panel"><div class="row" style="border:none;padding:0"><span class="ficon">📖</span><div class="rt"><b>' + esc(f.name) + '</b><span>互動式文件・可在頁面內開啟</span></div></div>' +
         '<button class="btn btn-gold btn-block" style="margin-top:10px" data-act="open-material" data-id="' + f.id + '" data-title="' + esc(l.title) + '">開啟教材</button></div>';
     } else {
-      body = '<div class="panel"><div class="row" style="border:none;padding:0"><span class="ficon">' + kindIcon(kk) + '</span><div class="rt"><b>' + esc(f.name) + '</b><span>' + (f.size ? Math.round(f.size / 1024) + ' KB' : '文件') + '</span></div></div>' +
-        '<a class="btn btn-primary btn-block" style="margin-top:10px" href="' + esc(mediaUrl(f.url)) + '" download="' + esc(f.name) + '">下載教材</a></div>';
+      var vk = fileViewKind(f), canPv = (vk === 'image' || vk === 'pdf');
+      body = '<div class="panel"><div class="row" style="border:none;padding:0"><span class="ficon">' + kindIcon(kk) + '</span><div class="rt"><b>' + esc(f.name) + '</b><span>' + (fmtSize(f.size) || (canPv ? (vk === 'pdf' ? 'PDF 文件' : '圖片') : '文件')) + '</span></div></div>' +
+        (canPv
+          ? '<button class="btn btn-primary btn-block" style="margin-top:10px" data-act="open-material" data-id="' + f.id + '" data-title="' + esc(l.title) + '">預覽' + (vk === 'pdf' ? '文件' : '圖片') + '</button>' +
+            '<div class="kv" style="margin-top:8px;text-align:center">看完覺得需要存檔，可在預覽畫面上按「下載」。</div>'
+          : '<a class="btn btn-primary btn-block" style="margin-top:10px" href="' + esc(mediaUrl(f.url)) + '" download="' + esc(f.name) + '">下載教材</a>') + '</div>';
     }
   }
   var ls = lessonsOf(l.course_id), idx = -1;
@@ -1343,7 +1405,7 @@ document.addEventListener('click', async function(e){
   if (act === 'open-course') { location.hash = '#/course/' + id; return; }
   if (act === 'open-lesson') { location.hash = '#/lesson/' + id; return; }
   if (act === 'open-material') { openMaterial(findFile(id), el.dataset.title); return; }
-  if (act === 'close-html') { var ov = document.getElementById('htmlOverlay'); if (ov) ov.remove(); return; }
+  if (act === 'close-html') { var ov = document.getElementById('htmlOverlay'); if (ov) ov.remove(); clearPrevBlob(); return; }
   if (act === 'mark') { var l1 = findLesson(id); if (l1) await markDone(l1, true); return; }
   if (act === 'unmark') { var l2 = findLesson(id); if (l2) await markDone(l2, false); return; }
   if (act === 'admin-tab') { state.adminTab = id; state.editCourse = null; state.editLesson = null; state.editMember = null; state.editFile = null; state.acctSql = ''; render(); return; }
@@ -1363,7 +1425,7 @@ document.addEventListener('click', async function(e){
   if (act === 'del-lesson') { if (confirm('刪除該單元？')) await dbDel('edu_lessons', id); return; }
   if (act === 'edit-file') { state.editFile = id; render(); return; }
   if (act === 'cancel-file') { state.editFile = null; render(); return; }
-  if (act === 'open-file') { var ff = findFile(id); if (!ff) return; if (isHtmlFile(ff)) openMaterial(ff, ff.name); else window.open(mediaUrl(ff.url), '_blank'); return; }
+  if (act === 'open-file') { var ff = findFile(id); if (ff) openMaterial(ff, ff.name); return; }
   if (act === 'del-file') {
     var frow = findFile(id), u = fileUsedBy(id);
     if (!confirm(u.length ? ('有 ' + u.length + ' 個單元正在使用這本教材，刪除後它們會變成「尚未綁定檔案」。仍要刪除？') : '刪除這本教材？')) return;
